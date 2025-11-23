@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CozyVerse | P2P Messenger & World</title>
+    <meta name="theme-color" content="#8b5cf6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script> 
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        body { touch-action: none; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .dark .glass { background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        #joystick-zone { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px; z-index: 50; display: none; }
+        #world-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; display: none; outline: none; }
+        
+        .ui-layer { position: relative; z-index: 10; height: 100vh; display: flex; flex-direction: column; transition: all 0.3s ease; }
+        
+        .msg-row { display: flex; width: 100%; margin-bottom: 8px; }
+        .msg-content { display: flex; flex-direction: column; max-width: 80%; }
+        .msg-bubble { padding: 8px 12px; border-radius: 16px; font-size: 0.95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.1); width: fit-content; word-break: break-word; line-height: 1.4; }
+        .msg-me { justify-content: flex-end; }
+        .msg-me .msg-content { align-items: flex-end; }
+        .msg-me .msg-bubble { background-color: #8b5cf6; color: white; border-bottom-right-radius: 2px; }
+        .msg-them { justify-content: flex-start; }
+        .msg-them .msg-content { align-items: flex-start; }
+        .msg-them .msg-bubble { background-color: white; color: #1f2937; border-bottom-left-radius: 2px; }
+        .dark .msg-them .msg-bubble { background-color: #374151; color: white; }
+
+        .video-container { aspect-ratio: 16/9; background: black; width: 100%; border-radius: 8px; overflow: hidden; position: relative; }
+        .video-container video { width: 100%; height: 100%; object-fit: contain; }
+        
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #8b5cf6; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #4b5563; border-radius: 2px; }
+    </style>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { cozy: { 50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95' } } } }
+        }
+    </script>
+</head>
+<body class="bg-cozy-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300 selection:bg-cozy-300">
+
+    <canvas id="world-canvas"></canvas>
+
+    <!-- Setup View -->
+    <div id="view-setup" class="ui-layer items-center justify-center bg-gradient-to-br from-cozy-100 to-purple-200 dark:from-gray-800 dark:to-gray-900 p-4">
+        <div class="glass p-6 rounded-2xl shadow-xl max-w-md w-full flex flex-col items-center space-y-6 z-20">
+            <h1 class="text-3xl font-bold text-cozy-600 dark:text-cozy-400 tracking-tight">CozyVerse</h1>
+            
+            <div id="setup-preview-container" class="w-40 h-40 bg-gradient-to-b from-blue-200 to-blue-100 dark:from-gray-700 dark:to-gray-800 rounded-full shadow-inner overflow-hidden relative border-4 border-white/20 flex items-center justify-center">
+                <canvas id="preview-canvas" class="w-full h-full"></canvas>
+            </div>
+            
+            <div class="w-full space-y-4">
+                <input type="text" id="setup-name" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border border-transparent focus:border-cozy-500 outline-none transition text-center font-bold" placeholder="Enter Display Name">
+                
+                <div class="space-y-2 bg-black/5 dark:bg-white/5 p-3 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold opacity-70">Skin/Base Color</span>
+                        <input type="color" id="setup-color-base" value="#ffdbac" onchange="app.updateLook('skin', this.value)" class="w-8 h-8 rounded cursor-pointer border-none bg-transparent">
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold opacity-70">Outfit Color</span>
+                        <input type="color" id="setup-color-outfit" value="#8b5cf6" onchange="app.updateLook('outfit', this.value)" class="w-8 h-8 rounded cursor-pointer border-none bg-transparent">
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold opacity-70">Style</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="app.changeType(-1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-left"></i></button>
+                            <span id="setup-lbl-type" class="text-xs w-24 text-center font-mono truncate">Human</span>
+                            <button onclick="app.changeType(1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-right"></i></button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold opacity-70">Headwear</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="app.changeHat(-1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-left"></i></button>
+                            <span id="setup-lbl-hat" class="text-xs w-24 text-center font-mono truncate">None</span>
+                            <button onclick="app.changeHat(1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button onclick="app.finishSetup()" class="w-full py-3 bg-cozy-600 hover:bg-cozy-700 text-white font-bold rounded-xl shadow-lg transform transition active:scale-95">Enter Universe</button>
+        </div>
+    </div>
+
+    <!-- Messenger View -->
+    <div id="view-messenger" class="ui-layer hidden flex-row bg-white dark:bg-gray-900">
+        <div class="w-full md:w-72 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full bg-cozy-50 dark:bg-gray-800 flex-shrink-0">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <div id="my-avatar-icon" class="w-8 h-8 rounded-lg bg-cozy-300 overflow-hidden border border-white/20"></div>
+                    <div class="overflow-hidden">
+                        <h2 id="my-name-display" class="font-bold text-sm truncate w-24">User</h2>
+                        <div class="text-[10px] opacity-60 cursor-pointer hover:text-cozy-500" onclick="app.copyMyId()">ID: <span id="my-peer-id-display">...</span> <i class="ph ph-copy"></i></div>
+                    </div>
+                </div>
+                <button onclick="app.toggleSettingsModal()" class="p-2 rounded-full hover:bg-black/10 transition"><i class="ph ph-gear text-xl"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2">
+                <div class="flex justify-between items-center px-2 mb-1 mt-2">
+                    <span class="text-xs font-bold uppercase opacity-50 tracking-wider">My Groups</span>
+                    <button onclick="app.showCreateGroupModal()" class="text-cozy-500 hover:text-cozy-600 p-1"><i class="ph ph-plus-circle text-xl"></i></button>
+                </div>
+                <div id="groups-list" class="space-y-1 mb-4"></div>
+                <div class="flex justify-between items-center px-2 mb-1">
+                    <span class="text-xs font-bold uppercase opacity-50 tracking-wider">Direct Messages</span>
+                </div>
+                <div class="flex space-x-2 mb-2 px-2">
+                    <input type="text" id="add-peer-input" placeholder="Enter Peer ID..." class="flex-1 p-1.5 text-xs rounded border dark:bg-gray-900 dark:border-gray-700 focus:border-cozy-500 outline-none">
+                    <button onclick="app.addContact()" class="p-1.5 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300"><i class="ph ph-plus"></i></button>
+                </div>
+                <div id="contacts-list" class="space-y-1 px-2"></div>
+            </div>
+        </div>
+
+        <div id="chat-panel" class="hidden md:flex flex-1 flex-col h-full relative bg-white dark:bg-gray-900 z-20">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur z-30">
+                <div class="flex items-center gap-2">
+                    <button class="md:hidden p-2" onclick="app.backToContacts()"><i class="ph ph-arrow-left"></i></button>
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2">
+                            <h3 id="current-chat-name" class="font-bold text-lg leading-tight">Select Chat</h3>
+                            <span id="live-badge" class="hidden px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold animate-pulse">LIVE</span>
+                        </div>
+                        <span id="chat-status" class="text-[10px] opacity-60">Offline</span>
+                    </div>
+                </div>
+                <div id="world-actions" class="hidden flex gap-2 items-center">
+                    <button id="btn-watch-stream" onclick="app.openStreamModal()" class="hidden px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-lg border border-purple-400">
+                        <i class="ph ph-television"></i> Watch
+                    </button>
+                    <div class="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div>
+                    <button onclick="app.copyGroupInvite()" class="p-2 text-xs bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200" title="Copy Invite"><i class="ph ph-share-network"></i></button>
+                    <div id="launch-controls" class="flex gap-2">
+                        <select id="world-select" class="text-xs p-2 rounded border dark:bg-gray-800 dark:border-gray-600 outline-none">
+                            <option value="cabin">Cozy Cabin</option>
+                            <option value="meadow">Sunny Meadow</option>
+                            <option value="neon">Neon Night</option>
+                            <option value="clouds">Cloud Haven</option>
+                        </select>
+                        <button onclick="app.launchWorld()" class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-full text-sm shadow font-semibold flex items-center gap-1"><i class="ph ph-globe"></i> Launch</button>
+                    </div>
+                </div>
+                <div id="join-world-btn-container" class="hidden">
+                    <button onclick="app.joinWorld()" class="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm shadow-lg font-bold flex items-center gap-2 animate-bounce">
+                        <i class="ph ph-rocket-launch"></i> Join World
+                    </button>
+                </div>
+            </div>
+            <div id="messages-container" class="flex-1 overflow-y-auto p-4 bg-pattern">
+                <div class="text-center text-gray-400 mt-10 opacity-50 text-sm">Select a chat to start messaging.</div>
+            </div>
+            <div class="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex gap-2">
+                <input type="text" id="msg-input" class="flex-1 p-3 rounded-full bg-gray-100 dark:bg-gray-800 border-none focus:ring-2 ring-cozy-500 outline-none" placeholder="Type a message (Enter to send)...">
+                <button onclick="app.sendMessage()" class="p-3 rounded-full bg-cozy-600 text-white hover:scale-105 transition"><i class="ph ph-paper-plane-right-fill"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">Settings</h3>
+                <button onclick="app.toggleSettingsModal()"><i class="ph ph-x text-lg"></i></button>
+            </div>
+            <div class="mb-6 bg-gray-100 dark:bg-gray-700/50 p-4 rounded-lg">
+                <h4 class="text-sm font-bold uppercase opacity-70 mb-3">Character Customization</h4>
+                <div class="flex gap-4">
+                    <div id="settings-preview-container" class="w-24 h-24 bg-gradient-to-b from-blue-200 to-blue-100 dark:from-gray-700 dark:to-gray-800 rounded-full shadow-inner overflow-hidden relative border-2 border-white/20 flex-shrink-0 flex items-center justify-center"></div>
+                    <div class="flex-1 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold opacity-70">Skin/Base</span>
+                            <input type="color" id="color-base" onchange="app.updateLook('skin', this.value)" class="w-8 h-8 rounded cursor-pointer border-none bg-transparent">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold opacity-70">Outfit</span>
+                            <input type="color" id="color-outfit" onchange="app.updateLook('outfit', this.value)" class="w-8 h-8 rounded cursor-pointer border-none bg-transparent">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold opacity-70">Style</span>
+                            <div class="flex items-center gap-1">
+                                <button onclick="app.changeType(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button>
+                                <span id="lbl-type" class="text-[10px] w-14 text-center font-mono truncate">Human</span>
+                                <button onclick="app.changeType(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold opacity-70">Hat</span>
+                            <div class="flex items-center gap-1">
+                                <button onclick="app.changeHat(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button>
+                                <span id="lbl-hat" class="text-[10px] w-14 text-center font-mono truncate">None</span>
+                                <button onclick="app.changeHat(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm">Include Chat History</span>
+                    <input type="checkbox" id="include-history-check" class="accent-cozy-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold uppercase opacity-60">Data Export/Import</label>
+                    <textarea id="import-area" class="w-full text-xs p-2 mt-1 rounded bg-gray-100 dark:bg-gray-900 h-24 font-mono" placeholder="Copy or Paste data..."></textarea>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="app.exportData()" class="flex-1 py-2 bg-cozy-100 text-cozy-700 rounded text-sm font-bold">Copy</button>
+                    <button onclick="app.importData()" class="flex-1 py-2 bg-cozy-500 text-white rounded text-sm font-bold">Load</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stream Watch Modal -->
+    <div id="modal-stream" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
+        <div class="bg-gray-900 p-4 rounded-xl shadow-2xl max-w-4xl w-full flex flex-col gap-4 border border-gray-700">
+            <div class="flex justify-between items-center text-white">
+                <h3 class="font-bold flex items-center gap-2"><i class="ph ph-broadcast text-red-500"></i> Live Broadcast</h3>
+                <button onclick="app.closeStreamModal()" class="hover:text-gray-300"><i class="ph ph-x text-xl"></i></button>
+            </div>
+            <div class="video-container bg-black relative">
+                <video id="stream-video" autoplay playsinline class="w-full h-full"></video>
+                <div class="absolute bottom-4 right-4 bg-black/50 p-2 rounded flex items-center gap-2">
+                    <i class="ph ph-speaker-high text-white"></i>
+                    <input type="range" min="0" max="1" step="0.1" value="1" oninput="document.getElementById('stream-video').volume = this.value" class="w-24">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Create Group -->
+    <div id="modal-create-group" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full">
+            <h3 class="text-xl font-bold mb-4">Create New Group</h3>
+            <input type="text" id="new-group-name" placeholder="Group Name" class="w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-900 border border-transparent focus:border-cozy-500 outline-none mb-4">
+            <div class="flex gap-2">
+                <button onclick="document.getElementById('modal-create-group').classList.add('hidden')" class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 rounded text-sm font-bold">Cancel</button>
+                <button onclick="app.createGroup()" class="flex-1 py-2 bg-cozy-500 text-white rounded text-sm font-bold">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- In-World Overlay UI -->
+    <div id="world-overlay" class="hidden absolute top-0 left-0 w-full h-full z-30 pointer-events-none flex flex-col justify-between">
+        <div class="p-4 flex justify-between items-start pointer-events-auto">
+            <div class="glass p-2 rounded-lg text-white text-xs flex flex-col gap-1 shadow-lg">
+                <div class="font-bold opacity-80 flex items-center gap-2"><span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> World Active</div>
+                <button onclick="app.shareScreen()" id="btn-share-screen" class="bg-purple-600 hover:bg-purple-500 px-2 py-1.5 rounded mt-1 font-bold">Share Screen</button>
+                <button onclick="app.toggleCameraMode()" class="bg-white/20 hover:bg-white/30 px-2 py-1 rounded mt-1">Toggle Cam (C)</button>
+                <div class="mt-2 text-[10px] opacity-70">Click screen to lock mouse</div>
+            </div>
+            <button onclick="app.leaveWorld()" class="glass p-3 rounded-full text-red-400 hover:text-red-200 hover:bg-red-500/20 transition shadow-lg"><i class="ph ph-x-circle text-2xl"></i></button>
+        </div>
+        <div class="p-4 w-full max-w-md pointer-events-auto mb-20 md:mb-0">
+            <div id="world-chat-log" class="h-40 overflow-y-auto mask-gradient mb-2 text-white text-shadow shadow-black/50 text-sm space-y-1 font-medium"></div>
+            <input type="text" id="world-input" class="glass w-full p-3 rounded-full text-white placeholder-white/50 outline-none focus:bg-black/40 transition backdrop-blur-md" placeholder="Say something...">
+        </div>
+        <div id="mobile-controls" class="pointer-events-auto absolute bottom-4 right-4 md:hidden flex gap-4">
+            <button id="jump-btn" class="w-16 h-16 rounded-full glass active:bg-white/30 flex items-center justify-center shadow-lg"><i class="ph ph-arrow-up text-white text-2xl"></i></button>
+        </div>
+        <div id="joystick-zone" class="pointer-events-auto md:hidden"></div>
+    </div>
+
+    <script>
+        const CONFIG = { peerConfig: { debug: 1 }, HOST_ID_PREFIX: 'GROUP_' };
+
+        // --- Low Poly / Synty Style Avatar ---
+        class Avatar {
+            static create(data) {
+                const group = new THREE.Group();
+                const skinCol = new THREE.Color(data.skinColor);
+                const outfitCol = new THREE.Color(data.outfitColor);
+                
+                const skinMat = new THREE.MeshLambertMaterial({ color: skinCol, flatShading: true });
+                const outfitMat = new THREE.MeshLambertMaterial({ color: outfitCol, flatShading: true });
+                const darkMat = new THREE.MeshLambertMaterial({ color: 0x222222, flatShading: true });
+                const leatherMat = new THREE.MeshLambertMaterial({ color: 0x8B4513, flatShading: true });
+
+                // --- 1. Body (Tunic Style) ---
+                const torsoGeo = new THREE.CylinderGeometry(0.2, 0.35, 0.55, 6);
+                const torso = new THREE.Mesh(torsoGeo, outfitMat);
+                torso.position.y = 0.55;
+                torso.castShadow = true;
+                group.add(torso);
+                
+                const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.1, 6), leatherMat);
+                belt.position.y = 0.45;
+                group.add(belt);
+
+                // --- 2. Head (Human or Robot) ---
+                let head;
+                if (data.type === 1) { // Robot
+                    head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.4), skinMat);
+                } else { // Human: Dodecahedron (Blocky round)
+                    head = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3, 0), skinMat);
+                }
+                
+                head.position.y = 1.05;
+                head.castShadow = true;
+                group.add(head);
+
+                // Eyes
+                const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.05);
+                const eyeL = new THREE.Mesh(eyeGeo, darkMat); 
+                const eyeR = new THREE.Mesh(eyeGeo, darkMat);
+                
+                if(data.type === 1) { // Robot Visor
+                    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.1), new THREE.MeshLambertMaterial({color:0x00ffff, emissive:0x00aaaa}));
+                    visor.position.set(0, 1.05, 0.21);
+                    group.add(visor);
+                } else {
+                    eyeL.position.set(-0.12, 1.05, 0.25);
+                    eyeR.position.set(0.12, 1.05, 0.25);
+                    group.add(eyeL, eyeR);
+                }
+
+                // --- 3. Limbs ---
+                const limbGeo = new THREE.BoxGeometry(0.1, 0.35, 0.1); 
+                
+                const armL_P = new THREE.Group(); armL_P.position.set(-0.32, 0.75, 0);
+                const armR_P = new THREE.Group(); armR_P.position.set(0.32, 0.75, 0);
+                
+                const armL = new THREE.Mesh(limbGeo, outfitMat); armL.position.y = -0.15;
+                const armR = new THREE.Mesh(limbGeo, outfitMat); armR.position.y = -0.15;
+                
+                armL_P.add(armL); armR_P.add(armR);
+                group.add(armL_P, armR_P);
+
+                const legL_P = new THREE.Group(); legL_P.position.set(-0.12, 0.3, 0);
+                const legR_P = new THREE.Group(); legR_P.position.set(0.12, 0.3, 0);
+                
+                const legL = new THREE.Mesh(limbGeo, darkMat); legL.position.y = -0.15;
+                const legR = new THREE.Mesh(limbGeo, darkMat); legR.position.y = -0.15;
+                
+                legL_P.add(legL); legR_P.add(legR);
+                group.add(legL_P, legR_P);
+
+                group.userData.limbs = { armL: armL_P, armR: armR_P, legL: legL_P, legR: legR_P };
+
+                // --- 4. Headwear ---
+                const hatY = 1.3;
+                
+                if(data.hat === 1) { // Wizard Hat
+                    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.5, 8), darkMat);
+                    cone.position.y = hatY + 0.2;
+                    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.3, 8), darkMat);
+                    tip.position.set(0.1, hatY+0.5, 0); tip.rotation.z = -0.5;
+                    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 8), darkMat);
+                    brim.position.y = hatY - 0.05;
+                    group.add(cone, tip, brim);
+                } else if(data.hat === 2) { // Knight Helmet
+                    const helm = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35, 0), new THREE.MeshLambertMaterial({color:0x999999, flatShading:true}));
+                    helm.position.y = 1.05;
+                    group.remove(head); group.add(helm); 
+                    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.15), new THREE.MeshLambertMaterial({color:0x555555}));
+                    visor.position.set(0, 1.05, 0.25); group.add(visor);
+                    const plume = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.3, 0.2), outfitMat);
+                    plume.position.set(0, 1.45, 0); group.add(plume);
+                } else if(data.hat === 3) { // Cowboy Hat
+                    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 8), leatherMat);
+                    brim.position.y = hatY - 0.1;
+                    const top = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.35), leatherMat);
+                    top.position.y = hatY;
+                    group.add(brim, top);
+                } else if(data.hat === 4) { // Viking
+                    const helm = new THREE.Mesh(new THREE.SphereGeometry(0.36, 8, 8, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshLambertMaterial({color:0x777777, flatShading:true}));
+                    helm.position.y = 1.05;
+                    const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 8), new THREE.MeshLambertMaterial({color:0xeeeeee}));
+                    hornL.position.set(-0.35, 1.1, 0); hornL.rotation.z = 0.6;
+                    const hornR = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 8), new THREE.MeshLambertMaterial({color:0xeeeeee}));
+                    hornR.position.set(0.35, 1.1, 0); hornR.rotation.z = -0.6;
+                    group.add(helm, hornL, hornR);
+                } else if(data.hat === 5) { // Top Hat
+                    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.05, 8), darkMat);
+                    brim.position.y = hatY - 0.1;
+                    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.4, 8), darkMat);
+                    top.position.y = hatY + 0.1;
+                    group.add(brim, top);
+                } else if(data.hat === 6) { // Cap
+                    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.36, 8, 8, 0, Math.PI*2, 0, Math.PI/2), outfitMat);
+                    cap.position.y = 1.05;
+                    const bill = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.2), outfitMat);
+                    bill.position.set(0, 1.05, 0.35);
+                    group.add(cap, bill);
+                } else if(data.hat === 7) { // Crown
+                    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.15, 6), new THREE.MeshLambertMaterial({color:0xffd700}));
+                    crown.position.y = hatY; group.add(crown);
+                } else if(data.hat === 8) { // Headphones
+                    const band = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.05, 4, 8, Math.PI), darkMat);
+                    band.position.y = 1.05;
+                    const cup = new THREE.BoxGeometry(0.1, 0.2, 0.2);
+                    const c1 = new THREE.Mesh(cup, outfitMat); c1.position.set(-0.4, 1.05, 0);
+                    const c2 = new THREE.Mesh(cup, outfitMat); c2.position.set(0.4, 1.05, 0);
+                    group.add(band, c1, c2);
+                } else if(data.hat === 9) { // Cat Ears
+                    const ear = new THREE.ConeGeometry(0.1, 0.2, 4);
+                    const e1 = new THREE.Mesh(ear, skinMat); e1.position.set(-0.25, 1.3, 0); e1.rotation.z=0.3;
+                    const e2 = new THREE.Mesh(ear, skinMat); e2.position.set(0.25, 1.3, 0); e2.rotation.z=-0.3;
+                    group.add(e1, e2);
+                }
+
+                group.userData.velocity = new THREE.Vector3();
+                return group;
+            }
+        }
+
+        // --- 3D Engine ---
+        class Engine {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+                
+                this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('world-canvas'), antialias: false }); 
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+                this.previewRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('preview-canvas'), alpha: true, antialias: true });
+                this.previewRenderer.setSize(160, 160);
+                this.previewScene = new THREE.Scene();
+                this.previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+                this.previewCamera.position.set(0, 0.9, 3.0);
+                this.previewCamera.lookAt(0, 0.8, 0);
+                
+                const pLight = new THREE.DirectionalLight(0xffffff, 1.0); pLight.position.set(2, 3, 4); 
+                this.previewScene.add(pLight);
+                this.previewScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+                this.avatars = {}; 
+                this.myAvatar = null;
+                this.clock = new THREE.Clock();
+                this.screenMesh = null; 
+                this.isWorldActive = false;
+                this.camMode = 0;
+
+                this.keys = { w: false, a: false, s: false, d: false };
+                this.mobileInput = { x: 0, y: 0 };
+                this.mouseLocked = false;
+                this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+                this.initLights();
+                this.setupInput();
+                this.loop();
+            }
+
+            initLights() {
+                const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+                this.scene.add(ambient);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                dirLight.position.set(10, 20, 10);
+                dirLight.castShadow = true;
+                dirLight.shadow.mapSize.width = 1024;
+                dirLight.shadow.mapSize.height = 1024;
+                this.scene.add(dirLight);
+            }
+
+            updatePreview(userData) {
+                this.previewScene.children = this.previewScene.children.filter(c => c.isLight);
+                const mesh = Avatar.create(userData);
+                this.previewScene.add(mesh);
+            }
+
+            createWorld(type) {
+                this.scene.children = this.scene.children.filter(c => c.isLight || (c.userData && c.userData.isAvatar));
+                let groundColor = 0x5D9C59;
+                let skyColor = 0x87CEEB;
+
+                if (type === 'cabin') {
+                    this.renderer.setClearColor(0x111111);
+                    this.generateCabin();
+                } else {
+                    if(type === 'neon') { groundColor = 0x220022; skyColor=0x110011; this.scene.fog = new THREE.Fog(0x110011, 10, 50); }
+                    else if(type === 'clouds') { groundColor=0xeeeeee; skyColor=0xcceeff; this.scene.fog = new THREE.Fog(0xcceeff, 10, 60); }
+                    else { this.scene.fog = new THREE.Fog(0x87CEEB, 10, 60); }
+                    
+                    this.renderer.setClearColor(skyColor);
+                    
+                    const ground = new THREE.Mesh(new THREE.CylinderGeometry(60, 60, 5, 32), new THREE.MeshLambertMaterial({color: groundColor, flatShading: true}));
+                    ground.position.y = -2.5; ground.receiveShadow=true; 
+                    this.scene.add(ground);
+
+                    if(type==='meadow') this.generateTrees(30);
+                    if(type==='neon') this.generateNeonGrid();
+                    if(type==='clouds') this.generateFloatingIslands();
+                    this.createScreen(0, 6, -12, 1.0);
+                }
+            }
+
+            createScreen(x, y, z, scale) {
+                const geo = new THREE.PlaneGeometry(16 * scale, 9 * scale);
+                const mat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                this.screenMesh = new THREE.Mesh(geo, mat);
+                this.screenMesh.position.set(x, y, z);
+                this.scene.add(this.screenMesh);
+                const frame = new THREE.Mesh(new THREE.BoxGeometry(17*scale, 10*scale, 0.5), new THREE.MeshLambertMaterial({color:0x222222}));
+                frame.position.set(x, y, z-0.3);
+                this.scene.add(frame);
+            }
+
+            generateCabin() {
+                const floor = new THREE.Mesh(new THREE.BoxGeometry(12, 0.5, 12), new THREE.MeshLambertMaterial({color: 0x5d4037, flatShading:true}));
+                this.scene.add(floor);
+                const wallMat = new THREE.MeshLambertMaterial({color: 0x8d6e63, flatShading:true});
+                const pillarMat = new THREE.MeshLambertMaterial({color: 0x4e342e, flatShading:true});
+                const makePillar = (x, z) => {
+                    const p = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 1), pillarMat);
+                    p.position.set(x, 4, z); this.scene.add(p);
+                };
+                makePillar(-6, -6); makePillar(6, -6); makePillar(-6, 6); makePillar(6, 6);
+                const back = new THREE.Mesh(new THREE.BoxGeometry(12, 8, 0.5), wallMat); back.position.set(0, 4, -6);
+                const left = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8, 12), wallMat); left.position.set(-6, 4, 0);
+                const right = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8, 12), wallMat); right.position.set(6, 4, 0);
+                this.scene.add(back, left, right);
+                const p = new THREE.PointLight(0xffaa55, 1.5, 20); p.position.set(0, 6, 0); p.castShadow=true;
+                this.scene.add(p);
+                this.createScreen(0, 3.5, -5.7, 0.6);
+            }
+
+            generateTrees(count) {
+                const green = new THREE.MeshLambertMaterial({color:0x2d4c1e, flatShading:true});
+                const brown = new THREE.MeshLambertMaterial({color:0x4a3c31, flatShading:true});
+                for(let i=0; i<count; i++) {
+                    const x = (Math.random()-0.5)*80, z = (Math.random()-0.5)*80;
+                    if(Math.abs(x)<10 && Math.abs(z)<10) continue;
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 1.5, 5), brown);
+                    trunk.position.set(x, 0.75, z); trunk.castShadow=true;
+                    const l1 = new THREE.Mesh(new THREE.ConeGeometry(1.5, 2, 6), green); l1.position.y=1.5;
+                    const l2 = new THREE.Mesh(new THREE.ConeGeometry(1.2, 1.8, 6), green); l2.position.y=2.5;
+                    const l3 = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.5, 6), green); l3.position.y=3.5;
+                    trunk.add(l1, l2, l3); this.scene.add(trunk);
+                }
+            }
+            generateNeonGrid() { const g = new THREE.GridHelper(100, 50, 0xff00ff, 0x00ffff); g.position.y=0.1; this.scene.add(g); }
+            generateFloatingIslands() { /* Same as before but flat shading */ }
+
+            spawnMe(user) {
+                if(this.myAvatar) this.scene.remove(this.myAvatar);
+                this.myAvatar = Avatar.create(user);
+                this.scene.add(this.myAvatar);
+            }
+            updateOrAddPeerAvatar(id, data) {
+                if(!this.avatars[id]) {
+                    const mesh = Avatar.create(data);
+                    this.scene.add(mesh);
+                    this.avatars[id] = mesh;
+                }
+                const av = this.avatars[id];
+                av.userData.targetPos = new THREE.Vector3(data.x, data.y, data.z);
+                av.userData.targetRot = data.ry;
+            }
+            removePeerAvatar(id) { if(this.avatars[id]) { this.scene.remove(this.avatars[id]); delete this.avatars[id]; } }
+            
+            applyVideoTexture(stream) {
+                if(!this.screenMesh) return;
+                const video = document.createElement('video'); video.srcObject = stream; video.play();
+                this.screenMesh.material = new THREE.MeshBasicMaterial({ map: new THREE.VideoTexture(video) });
+            }
+
+            setupInput() {
+                window.addEventListener('resize', () => { this.camera.aspect = window.innerWidth/window.innerHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(window.innerWidth, window.innerHeight); });
+                document.addEventListener('keydown', (e) => { if(document.activeElement.tagName==='INPUT')return; this.keys[e.key.toLowerCase()] = true; if(e.key.toLowerCase()==='c')this.toggleCamera(); });
+                document.addEventListener('keyup', (e) => this.keys[e.key.toLowerCase()] = false);
+                const c = document.getElementById('world-canvas');
+                c.addEventListener('click', () => { if(this.camMode===1) c.requestPointerLock(); });
+                document.addEventListener('pointerlockchange', () => { this.mouseLocked = document.pointerLockElement === c; });
+                document.addEventListener('mousemove', (e) => {
+                    if(this.mouseLocked && this.camMode === 1) {
+                        this.euler.setFromQuaternion(this.camera.quaternion);
+                        this.euler.y -= e.movementX * 0.002;
+                        this.euler.x -= e.movementY * 0.002;
+                        this.euler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.euler.x));
+                        this.camera.quaternion.setFromEuler(this.euler);
+                        if(this.myAvatar) this.myAvatar.rotation.y = this.euler.y;
+                    }
+                });
+                const z = document.getElementById('joystick-zone');
+                let tid=null, sx=0, sy=0;
+                z.addEventListener('touchstart', e=>{tid=e.changedTouches[0].identifier; sx=e.changedTouches[0].clientX; sy=e.changedTouches[0].clientY;}, {passive:false});
+                z.addEventListener('touchmove', e=>{e.preventDefault(); const t=Array.from(e.changedTouches).find(x=>x.identifier===tid); if(t) { this.mobileInput.x=Math.max(-1,Math.min(1,(t.clientX-sx)/40)); this.mobileInput.y=Math.max(-1,Math.min(1,(t.clientY-sy)/40)); }}, {passive:false});
+                z.addEventListener('touchend', ()=>{this.mobileInput={x:0,y:0};});
+            }
+
+            toggleCamera() { 
+                this.camMode=(this.camMode+1)%2; 
+                if(this.camMode===1) {
+                    this.euler.x = 0; this.camera.quaternion.setFromEuler(this.euler);
+                    document.getElementById('world-canvas').requestPointerLock(); 
+                } else document.exitPointerLock();
+            }
+
+            loop() {
+                requestAnimationFrame(()=>this.loop());
+                const dt = this.clock.getDelta();
+                
+                if(this.previewScene.children.length > 2) this.previewScene.children[2].rotation.y += dt * 0.5;
+                this.previewRenderer.render(this.previewScene, this.previewCamera);
+
+                if(!this.isWorldActive || !this.myAvatar) return;
+                
+                const speed = 8.0 * dt;
+                let dx=0, dz=0;
+                if(this.keys['w']||this.keys['arrowup']) dz=-1;
+                if(this.keys['s']||this.keys['arrowdown']) dz=1;
+                if(this.keys['a']||this.keys['arrowleft']) dx=-1;
+                if(this.keys['d']||this.keys['arrowright']) dx=1;
+                if(this.mobileInput.x!==0) dx=this.mobileInput.x;
+                if(this.mobileInput.y!==0) dz=this.mobileInput.y;
+                
+                let vec = new THREE.Vector3(dx, 0, dz);
+                const isMoving = vec.length() > 0;
+                const t = this.clock.elapsedTime;
+
+                if(isMoving) {
+                    vec.normalize().multiplyScalar(speed);
+                    if(this.camMode===1) vec.applyEuler(new THREE.Euler(0, this.euler.y, 0));
+                    else this.myAvatar.rotation.y = Math.atan2(vec.x, vec.z);
+                    this.myAvatar.position.add(vec);
+                    
+                    const s = Math.sin(t*10)*0.6;
+                    if(this.myAvatar.userData.limbs) {
+                        this.myAvatar.userData.limbs.armL.rotation.x = s;
+                        this.myAvatar.userData.limbs.armR.rotation.x = -s;
+                        this.myAvatar.userData.limbs.legL.rotation.x = -s;
+                        this.myAvatar.userData.limbs.legR.rotation.x = s;
+                    }
+                    window.app.broadcastPosition({x:this.myAvatar.position.x, y:this.myAvatar.position.y, z:this.myAvatar.position.z, ry:this.myAvatar.rotation.y});
+                } else {
+                    if(this.myAvatar.userData.limbs) {
+                        this.myAvatar.userData.limbs.armL.rotation.x = 0;
+                        this.myAvatar.userData.limbs.armR.rotation.x = 0;
+                        this.myAvatar.userData.limbs.legL.rotation.x = 0;
+                        this.myAvatar.userData.limbs.legR.rotation.x = 0;
+                    }
+                }
+
+                for(const id in this.avatars) {
+                    const av = this.avatars[id];
+                    if(av.userData.targetPos) {
+                        av.position.lerp(av.userData.targetPos, 0.2);
+                        let d = av.userData.targetRot - av.rotation.y;
+                        while(d>Math.PI)d-=Math.PI*2; while(d<-Math.PI)d+=Math.PI*2;
+                        av.rotation.y += d*0.2;
+                        
+                        if(av.position.distanceTo(av.userData.targetPos) > 0.1) {
+                             const s = Math.sin(t*10)*0.6;
+                             if(av.userData.limbs) {
+                                 av.userData.limbs.armL.rotation.x = s;
+                                 av.userData.limbs.armR.rotation.x = -s;
+                                 av.userData.limbs.legL.rotation.x = -s;
+                                 av.userData.limbs.legR.rotation.x = s;
+                             }
+                        } else {
+                            if(av.userData.limbs) {
+                                av.userData.limbs.armL.rotation.x = 0; av.userData.limbs.armR.rotation.x = 0;
+                                av.userData.limbs.legL.rotation.x = 0; av.userData.limbs.legR.rotation.x = 0;
+                            }
+                        }
+                    }
+                }
+
+                if(this.camMode===0) {
+                    const target = this.myAvatar.position.clone().add(new THREE.Vector3(0, 5, 7));
+                    this.camera.position.lerp(target, 0.1);
+                    this.camera.lookAt(this.myAvatar.position);
+                } else {
+                    this.camera.position.copy(this.myAvatar.position).add(new THREE.Vector3(0, 1.3, 0));
+                    const offset = new THREE.Vector3(0, 0, -0.2).applyQuaternion(this.camera.quaternion);
+                    this.camera.position.add(offset);
+                }
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        class App {
+            constructor() {
+                this.state = {
+                    user: JSON.parse(localStorage.getItem('cozyUser')) || { name: '', skinColor: '#ffdbac', outfitColor: '#8b5cf6', type: 0, hat: 0 },
+                    contacts: JSON.parse(localStorage.getItem('cozyContacts')) || [],
+                    groups: JSON.parse(localStorage.getItem('cozyGroups')) || [],
+                    chats: JSON.parse(localStorage.getItem('cozyChats')) || {},
+                    activeChatId: null,
+                    isHosting: false,
+                    streamerId: null,
+                    activeWorldHostId: null
+                };
+                this.peer = null; this.conns = {}; this.engine = new Engine(); this.myId = null;
+                this.init();
+            }
+
+            init() {
+                this.updateCustomizationUI();
+                this.engine.updatePreview(this.state.user);
+                
+                if(this.state.user.name) { this.switchView('messenger'); this.initPeer(); }
+                else { this.switchView('setup'); }
+                
+                document.getElementById('setup-name').addEventListener('keypress', e => { if(e.key==='Enter') this.finishSetup(); });
+                document.getElementById('msg-input').addEventListener('keypress', e => { if(e.key==='Enter') this.sendMessage(); });
+            }
+
+            updateLook(key, val) {
+                if(key === 'skin') this.state.user.skinColor = val;
+                if(key === 'outfit') this.state.user.outfitColor = val;
+                this.updateAll();
+            }
+            changeType(dir) {
+                let v = this.state.user.type + dir;
+                if(v < 0) v = 1; if(v > 1) v = 0; // Only 0 (Human) and 1 (Robot)
+                this.state.user.type = v;
+                this.updateAll();
+            }
+            changeHat(dir) {
+                let v = this.state.user.hat + dir;
+                if(v < 0) v = 9; if(v > 9) v = 0; // Updated count
+                this.state.user.hat = v;
+                this.updateAll();
+            }
+            updateAll() {
+                this.saveUser();
+                this.updateCustomizationUI();
+                this.engine.updatePreview(this.state.user);
+                if(this.state.user.name) this.broadcastProfileUpdate();
+            }
+            updateCustomizationUI() {
+                const typeNames = {0:'Human', 1:'Robot'};
+                const hatNames = {0:'None', 1:'Wizard', 2:'Helmet', 3:'Cowboy', 4:'Viking', 5:'Top Hat', 6:'Cap', 7:'Crown', 8:'Phones', 9:'Cat Ears'};
+                
+                const setText = (id, txt) => { const el = document.getElementById(id); if(el) el.innerText = txt; };
+                const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
+
+                setText('setup-lbl-type', typeNames[this.state.user.type]);
+                setText('setup-lbl-hat', hatNames[this.state.user.hat]);
+                setVal('setup-color-base', this.state.user.skinColor);
+                setVal('setup-color-outfit', this.state.user.outfitColor);
+
+                setText('lbl-type', typeNames[this.state.user.type]);
+                setText('lbl-hat', hatNames[this.state.user.hat]);
+                setVal('color-base', this.state.user.skinColor);
+                setVal('color-outfit', this.state.user.outfitColor);
+
+                const mini = document.getElementById('my-avatar-icon'); 
+                if(mini) mini.style.backgroundColor = this.state.user.outfitColor;
+            }
+            saveUser() { localStorage.setItem('cozyUser', JSON.stringify(this.state.user)); }
+            
+            broadcastProfileUpdate() {
+                if(this.engine.isWorldActive) this.engine.spawnMe(this.state.user);
+                const packet = { type: 'profile', user: this.state.user };
+                if(this.state.isHosting) this.broadcast(packet);
+                else Object.values(this.conns).forEach(c => c.send(packet));
+            }
+
+            finishSetup() { 
+                const n = document.getElementById('setup-name').value; 
+                if(!n) return alert("Name required!"); 
+                this.state.user.name = n; this.saveUser(); 
+                this.switchView('messenger'); this.initPeer(); 
+            }
+            switchView(v) {
+                document.querySelectorAll('.ui-layer').forEach(el=>el.classList.add('hidden')); 
+                document.getElementById(v === 'setup' ? 'view-setup' : 'view-messenger').classList.remove('hidden');
+                if(v==='messenger') { this.renderGroups(); this.renderContacts(); document.getElementById('my-name-display').innerText = this.state.user.name; }
+            }
+            initPeer() {
+                this.peer = new Peer(null, CONFIG.peerConfig);
+                this.peer.on('open', id => { this.myId = id; document.getElementById('my-peer-id-display').innerText = id; });
+                this.peer.on('connection', c => this.handleConnection(c));
+                this.peer.on('call', call => { call.answer(); call.on('stream', s => this.handleIncomingStream(s, call.peer)); });
+            }
+            handleConnection(conn) {
+                this.conns[conn.peer] = conn;
+                conn.on('open', () => {
+                    conn.send({ type: 'handshake', user: this.state.user, isWorldHost: this.state.isHosting && this.engine.isWorldActive });
+                    if(this.state.isHosting && this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX) && this.pendingWorldType) {
+                        conn.send({ type: 'world-invite', worldType: this.pendingWorldType, hostId: this.myId });
+                    }
+                });
+                conn.on('data', d => this.handleData(conn.peer, d));
+                conn.on('close', () => { 
+                    delete this.conns[conn.peer]; this.engine.removePeerAvatar(conn.peer);
+                    if(this.state.activeWorldHostId === conn.peer) {
+                        this.leaveWorld(); alert("Host disconnected."); this.state.activeWorldHostId = null; this.refreshWorldUI();
+                    }
+                });
+            }
+            handleData(id, data) {
+                if(data.type === 'chat') { 
+                    this.addMessage(id, data.msg, false, data.senderName, data.timestamp, data.groupId); 
+                    if(this.state.isHosting) this.broadcast(data, id); 
+                } else if(data.type === 'pos') { 
+                    this.engine.updateOrAddPeerAvatar(id, data); 
+                    if(this.state.isHosting) this.broadcast(data, id); 
+                } else if(data.type === 'world-invite') { 
+                    this.pendingWorldType = data.worldType; this.state.activeWorldHostId = data.hostId || id; this.refreshWorldUI();
+                } else if(data.type === 'profile') {
+                    this.engine.removePeerAvatar(id);
+                    this.engine.updateOrAddPeerAvatar(id, { ...data.user, x:0, y:0, z:0, ry:0 });
+                } else if(data.type === 'handshake') {
+                    this.conns[id].user = data.user;
+                    if(data.isWorldHost) { this.state.activeWorldHostId = id; this.refreshWorldUI(); }
+                }
+            }
+            refreshWorldUI() {
+                const launchCtrl = document.getElementById('launch-controls');
+                const joinBtn = document.getElementById('join-world-btn-container');
+                const liveBadge = document.getElementById('live-badge');
+                const watchBtn = document.getElementById('btn-watch-stream');
+                
+                if (this.state.activeWorldHostId) {
+                    liveBadge.classList.remove('hidden');
+                    if (this.state.activeWorldHostId === this.myId) {
+                        launchCtrl.classList.remove('hidden'); joinBtn.classList.add('hidden');
+                    } else {
+                        launchCtrl.classList.add('hidden'); joinBtn.classList.remove('hidden'); watchBtn.classList.remove('hidden');
+                    }
+                } else {
+                    liveBadge.classList.add('hidden'); launchCtrl.classList.remove('hidden'); joinBtn.classList.add('hidden'); watchBtn.classList.add('hidden');
+                }
+            }
+            showCreateGroupModal() { document.getElementById('modal-create-group').classList.remove('hidden'); }
+            createGroup() {
+                const name = document.getElementById('new-group-name').value.trim();
+                if(!name) return;
+                const groupId = CONFIG.HOST_ID_PREFIX + Math.random().toString(36).substr(2, 9);
+                this.state.groups.push({ id: groupId, name: name, hostId: this.myId });
+                localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
+                this.renderGroups();
+                document.getElementById('modal-create-group').classList.add('hidden');
+                this.openChat(groupId);
+            }
+            renderGroups() {
+                const l = document.getElementById('groups-list'); l.innerHTML = '';
+                this.state.groups.forEach(g => {
+                    const div = document.createElement('div');
+                    div.className = `p-2 rounded flex items-center justify-between text-sm hover:bg-gray-200 dark:hover:bg-gray-700 ${this.state.activeChatId===g.id ? 'bg-gray-200 dark:bg-gray-700 font-bold' : ''}`;
+                    div.innerHTML = `<div class="flex items-center gap-2 cursor-pointer flex-1" onclick="app.openChat('${g.id}')"><span class="w-2 h-2 rounded-full bg-cozy-500"></span> ${g.name}</div>`;
+                    l.appendChild(div);
+                });
+            }
+            addContact() { 
+                const id = document.getElementById('add-peer-input').value.trim();
+                if(id && id!==this.myId) {
+                    this.state.contacts.push({id, name:'Unknown'}); 
+                    localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
+                    this.renderContacts(); this.peer.connect(id); 
+                }
+            }
+            renderContacts() {
+                const l = document.getElementById('contacts-list'); l.innerHTML = '';
+                this.state.contacts.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = `p-2 rounded cursor-pointer flex items-center gap-2 text-sm hover:bg-gray-200 dark:hover:bg-gray-700 ${this.state.activeChatId===c.id ? 'bg-gray-200 dark:bg-gray-700' : ''}`;
+                    div.onclick = () => this.openChat(c.id);
+                    div.innerHTML = `<div class="w-6 h-6 rounded-full bg-gray-400 flex items-center justify-center text-[10px] text-white">${c.name[0]||'?'}</div> ${c.name === 'Unknown' ? c.id.substr(0,6)+'...' : c.name}`;
+                    l.appendChild(div);
+                });
+            }
+            openChat(id) {
+                this.state.activeChatId = id;
+                const isGroup = id.startsWith(CONFIG.HOST_ID_PREFIX);
+                const groupData = this.state.groups.find(g=>g.id===id);
+                this.renderGroups(); this.renderContacts();
+                document.getElementById('chat-panel').classList.remove('hidden');
+                if(window.innerWidth<768) document.querySelector('#view-messenger > div:first-child').classList.add('hidden');
+                if(isGroup) {
+                    document.getElementById('current-chat-name').innerText = groupData ? groupData.name : "Group";
+                    document.getElementById('world-actions').classList.remove('hidden');
+                    this.state.isHosting = (groupData && groupData.hostId === this.myId);
+                    document.getElementById('chat-status').innerText = this.state.isHosting ? "You are Host" : "Connected";
+                    this.state.activeWorldHostId = null; this.refreshWorldUI();
+                } else {
+                    document.getElementById('current-chat-name').innerText = id;
+                    document.getElementById('world-actions').classList.add('hidden');
+                    this.state.isHosting = false;
+                    if(!this.conns[id]) this.peer.connect(id);
+                }
+                this.renderMessages(id);
+            }
+            sendMessage() {
+                const txt = document.getElementById('msg-input').value.trim();
+                if(!txt) return;
+                const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                const packet = { type: 'chat', msg: txt, senderName: this.state.user.name, timestamp: ts, groupId: this.state.activeChatId };
+                this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts, this.state.activeChatId);
+                if(this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX)) {
+                    if(this.state.isHosting) this.broadcast(packet); else Object.values(this.conns).forEach(c => c.send(packet));
+                } else if(this.conns[this.state.activeChatId]) { this.conns[this.state.activeChatId].send(packet); }
+                document.getElementById('msg-input').value = '';
+            }
+            addMessage(chatId, txt, isMe, name, ts, groupId) {
+                const tid = groupId && groupId.startsWith(CONFIG.HOST_ID_PREFIX) ? groupId : chatId;
+                if(!this.state.chats[tid]) this.state.chats[tid] = [];
+                this.state.chats[tid].push({txt, isMe, name, ts});
+                localStorage.setItem('cozyChats', JSON.stringify(this.state.chats));
+                if(this.state.activeChatId === tid) this.renderMessages(tid);
+                if(this.engine.isWorldActive) {
+                    const d=document.createElement('div'); d.innerHTML=`<span class="opacity-50 text-xs">${name}:</span> ${txt}`;
+                    document.getElementById('world-chat-log').appendChild(d);
+                }
+            }
+            renderMessages(chatId) {
+                const c = document.getElementById('messages-container'); c.innerHTML = '';
+                const msgs = this.state.chats[chatId] || [];
+                msgs.forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = `msg-row ${m.isMe ? 'msg-me' : 'msg-them'}`;
+                    div.innerHTML = `<div class="msg-content"><div class="text-[10px] opacity-50 px-1 mb-0.5">${m.name} • ${m.ts}</div><div class="msg-bubble">${m.txt}</div></div>`;
+                    c.appendChild(div);
+                });
+                c.scrollTop = c.scrollHeight;
+            }
+            broadcast(data, excludeId) { Object.values(this.conns).forEach(c => { if(c.peer !== excludeId) c.send(data); }); }
+            broadcastPosition(pos) {
+                if(this.state.isHosting) this.broadcast({type:'pos', ...pos}, this.myId);
+                else Object.values(this.conns).forEach(c => c.send({type:'pos', ...pos}));
+            }
+            launchWorld() {
+                const t = document.getElementById('world-select').value;
+                this.pendingWorldType = t; this.state.activeWorldHostId = this.myId;
+                this.enterWorld(t);
+                this.broadcast({type:'world-invite', worldType: t, hostId: this.myId});
+                this.refreshWorldUI();
+            }
+            joinWorld() { this.enterWorld(this.pendingWorldType || 'meadow'); }
+            enterWorld(t) {
+                document.getElementById('world-canvas').style.display='block';
+                document.getElementById('world-overlay').classList.remove('hidden');
+                document.getElementById('joystick-zone').style.display='block';
+                document.getElementById('view-messenger').classList.add('hidden');
+                this.engine.isWorldActive=true; this.engine.createWorld(t);
+                this.engine.spawnMe(this.state.user);
+                document.getElementById('world-input').onkeypress = e => { if(e.key==='Enter'){ document.getElementById('msg-input').value=e.target.value; this.sendMessage(); e.target.value=''; }};
+            }
+            leaveWorld() {
+                document.getElementById('world-canvas').style.display='none';
+                document.getElementById('world-overlay').classList.add('hidden');
+                document.getElementById('joystick-zone').style.display='none';
+                document.getElementById('view-messenger').classList.remove('hidden');
+                this.engine.isWorldActive=false;
+            }
+            shareScreen() {
+                navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(stream => {
+                    this.state.streamerId = this.myId;
+                    this.engine.applyVideoTexture(stream);
+                    this.handleIncomingStream(stream, this.myId);
+                    if(this.state.isHosting) this.broadcast({type:'stream-start', streamerId: this.myId});
+                    Object.values(this.conns).forEach(c => this.peer.call(c.peer, stream));
+                });
+            }
+            handleIncomingStream(stream, id) {
+                this.state.streamerId = id;
+                const video = document.getElementById('stream-video');
+                video.srcObject = stream;
+                if(id !== this.myId) video.play();
+                if(!this.engine.isWorldActive) document.getElementById('btn-watch-stream').classList.remove('hidden');
+                this.engine.applyVideoTexture(stream);
+            }
+            openStreamModal() { document.getElementById('modal-stream').classList.remove('hidden'); }
+            closeStreamModal() { document.getElementById('modal-stream').classList.add('hidden'); }
+            backToContacts() { document.getElementById('chat-panel').classList.add('hidden'); document.querySelector('#view-messenger > div:first-child').classList.remove('hidden'); }
+            toggleCameraMode() { this.engine.toggleCamera(); }
+            toggleSettingsModal() { 
+                const modal = document.getElementById('settings-modal');
+                modal.classList.toggle('hidden');
+                if (!modal.classList.contains('hidden')) {
+                    const previewCanvas = document.getElementById('preview-canvas');
+                    document.getElementById('settings-preview-container').appendChild(previewCanvas);
+                } else {
+                    if(!document.getElementById('view-setup').classList.contains('hidden')) {
+                        const previewCanvas = document.getElementById('preview-canvas');
+                        document.getElementById('setup-preview-container').appendChild(previewCanvas);
+                    }
+                }
+            }
+            copyMyId() { navigator.clipboard.writeText(this.myId); alert("ID Copied"); }
+            copyGroupInvite() { navigator.clipboard.writeText(this.myId); alert("Host ID Copied"); }
+            exportData() { 
+                const data = { user: this.state.user, contacts: this.state.contacts, groups: this.state.groups };
+                if(document.getElementById('include-history-check').checked) data.chats = this.state.chats;
+                const s = JSON.stringify(data); document.getElementById('import-area').value = s; navigator.clipboard.writeText(s);
+            }
+            importData() {
+                try {
+                    const d = JSON.parse(document.getElementById('import-area').value);
+                    if(d.user) localStorage.setItem('cozyUser', JSON.stringify(d.user));
+                    if(d.groups) localStorage.setItem('cozyGroups', JSON.stringify(d.groups));
+                    if(d.chats) localStorage.setItem('cozyChats', JSON.stringify(d.chats));
+                    location.reload();
+                } catch(e) { alert("Invalid"); }
+            }
+        }
+        window.onload = () => window.app = new App();
+    </script>
+</body>
+</html>
