@@ -65,7 +65,7 @@
             position: relative;
         }
 
-        /* CHAT HEADER - Fixed Height */
+        /* CHAT HEADER - Responsive Height */
         #chat-header {
             flex-shrink: 0;
             z-index: 30;
@@ -114,6 +114,8 @@
         .toast.show { opacity: 1; }
         
         .overlay-top { z-index: 70 !important; }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
     </style>
     
     <script>
@@ -148,19 +150,68 @@
         </div>
     </div>
 
+    <!-- Home Screen View -->
+    <div id="view-home" class="ui-layer hidden flex flex-col bg-gray-100 dark:bg-gray-900">
+        <!-- Home Header -->
+        <div class="p-6 flex justify-between items-center bg-white dark:bg-gray-800 shadow-sm">
+            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cozy-500 to-purple-500">CozyVerse</h1>
+            <button onclick="app.toggleSettingsModal()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"><i class="ph ph-gear text-xl"></i></button>
+        </div>
+
+        <!-- Home Content -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            <!-- ID Card -->
+            <div class="glass bg-gradient-to-br from-cozy-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg animate-float relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10 transform translate-x-8 -translate-y-8"><i class="ph ph-planet text-[120px]"></i></div>
+                <div class="flex items-center gap-4 relative z-10">
+                    <div id="home-avatar-preview" class="w-16 h-16 bg-white/20 rounded-full border-2 border-white/30"></div>
+                    <div>
+                        <h2 id="home-welcome-name" class="text-2xl font-bold">Welcome!</h2>
+                        <p class="text-sm opacity-80">Ready to explore?</p>
+                    </div>
+                </div>
+                <div class="mt-6 bg-black/20 p-3 rounded-xl flex items-center justify-between cursor-pointer hover:bg-black/30 transition" onclick="app.copyMyId()">
+                    <div class="flex flex-col overflow-hidden">
+                        <span class="text-[10px] uppercase font-bold opacity-60">Your Universal ID</span>
+                        <span id="home-my-id" class="font-mono text-sm truncate">Loading...</span>
+                    </div>
+                    <i class="ph ph-copy text-xl"></i>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col items-center justify-center gap-1">
+                    <span id="stat-contacts" class="text-2xl font-bold text-cozy-500">0</span>
+                    <span class="text-xs opacity-60 uppercase font-bold">Contacts</span>
+                </div>
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col items-center justify-center gap-1">
+                    <span id="stat-groups" class="text-2xl font-bold text-purple-500">0</span>
+                    <span class="text-xs opacity-60 uppercase font-bold">Groups</span>
+                </div>
+            </div>
+
+            <!-- Main Action -->
+            <button onclick="app.switchView('messenger')" class="w-full py-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-between px-6 hover:bg-gray-50 dark:hover:bg-gray-700 transition group">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-full bg-cozy-100 dark:bg-cozy-900/50 flex items-center justify-center text-cozy-500"><i class="ph ph-chat-circle-text text-2xl"></i></div>
+                    <div class="text-left">
+                        <h3 class="font-bold text-lg">Messenger & Worlds</h3>
+                        <p class="text-xs opacity-60">Chat and hang out with friends</p>
+                    </div>
+                </div>
+                <i class="ph ph-caret-right text-gray-400 group-hover:text-cozy-500 group-hover:translate-x-1 transition"></i>
+            </button>
+        </div>
+    </div>
+
     <!-- Messenger View -->
     <div id="view-messenger" class="ui-layer hidden flex-row bg-white dark:bg-gray-900">
         <div class="w-full md:w-72 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full bg-cozy-50 dark:bg-gray-800 flex-shrink-0">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                    <div id="my-avatar-icon" class="w-8 h-8 rounded-lg bg-cozy-300 overflow-hidden border border-white/20"></div>
-                    <div class="overflow-hidden">
-                        <h2 id="my-name-display" class="font-bold text-sm truncate w-24">User</h2>
-                        <div class="text-[10px] opacity-60 cursor-pointer hover:text-cozy-500 flex items-center gap-1" onclick="app.copyMyId()">
-                            <span id="status-dot" class="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Connecting..."></span>
-                            <span class="truncate w-20">ID: <span id="my-peer-id-display">...</span></span> <i class="ph ph-copy"></i>
-                        </div>
-                    </div>
+                <div class="flex items-center space-x-2 cursor-pointer hover:opacity-70 transition" onclick="app.goHome()">
+                    <div class="w-8 h-8 rounded-lg bg-cozy-500 flex items-center justify-center text-white"><i class="ph ph-house-simple"></i></div>
+                    <span class="font-bold text-sm">Home</span>
                 </div>
                 <button onclick="app.toggleSettingsModal()" class="p-2 rounded-full hover:bg-black/10 transition"><i class="ph ph-gear text-xl"></i></button>
             </div>
@@ -190,40 +241,44 @@
         </div>
 
         <div id="chat-panel" class="hidden md:flex flex-col relative bg-white dark:bg-gray-900 z-20">
-            <div id="chat-header" class="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur">
-                <div class="flex items-center gap-2">
+            <!-- Responsive Header -->
+            <div id="chat-header" class="p-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-y-2 justify-between items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur">
+                <div class="flex items-center gap-2 mr-2">
                     <button class="md:hidden p-2" onclick="app.backToContacts()"><i class="ph ph-arrow-left"></i></button>
                     <div class="flex flex-col">
                         <div class="flex items-center gap-2">
-                            <h3 id="current-chat-name" class="font-bold text-lg leading-tight">Select Chat</h3>
-                            <div id="conn-indicator" class="w-2 h-2 rounded-full bg-red-500" title="Offline"></div>
+                            <h3 id="current-chat-name" class="font-bold text-lg leading-tight truncate max-w-[150px] sm:max-w-xs">Select Chat</h3>
+                            <div id="conn-indicator" class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Offline"></div>
                             <span id="live-badge" class="hidden px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold animate-pulse">LIVE</span>
                         </div>
                         <span id="chat-status" class="text-[10px] opacity-60">Offline</span>
                     </div>
                 </div>
-                <div id="world-actions" class="hidden flex gap-2 items-center">
+                
+                <div id="world-actions" class="hidden flex flex-wrap gap-2 items-center justify-end flex-1">
                     <button id="btn-watch-stream" onclick="app.openStreamModal()" class="hidden px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-lg border border-purple-400">
-                        <i class="ph ph-television"></i> Watch
+                        <i class="ph ph-television"></i> <span class="hidden sm:inline">Watch</span>
                     </button>
                     <button onclick="app.showInviteModal()" class="p-2 text-xs bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200" title="Invite Contact"><i class="ph ph-user-plus"></i></button>
                     <button onclick="app.copyGroupInvite()" class="p-2 text-xs bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200" title="Copy Invite Link"><i class="ph ph-share-network"></i></button>
-                    <div id="launch-controls" class="flex gap-2">
-                        <select id="world-select" class="text-xs p-2 rounded border dark:bg-gray-800 dark:border-gray-600 outline-none">
+                    
+                    <div id="launch-controls" class="flex gap-2 items-center">
+                        <select id="world-select" class="text-xs p-2 rounded border dark:bg-gray-800 dark:border-gray-600 outline-none max-w-[100px]">
                             <option value="cabin">Cozy Cabin</option>
                             <option value="meadow">Sunny Meadow</option>
                             <option value="neon">Neon Night</option>
                             <option value="clouds">Cloud Haven</option>
                         </select>
-                        <button onclick="app.launchWorld()" class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-full text-sm shadow font-semibold flex items-center gap-1"><i class="ph ph-globe"></i> Launch</button>
+                        <button onclick="app.launchWorld()" class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-full text-sm shadow font-semibold flex items-center gap-1 whitespace-nowrap"><i class="ph ph-globe"></i> Launch</button>
                     </div>
                 </div>
-                <div id="join-world-btn-container" class="hidden">
-                    <button onclick="app.joinWorld()" class="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm shadow-lg font-bold flex items-center gap-2 animate-bounce">
+                <div id="join-world-btn-container" class="hidden ml-auto">
+                    <button onclick="app.joinWorld()" class="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm shadow-lg font-bold flex items-center gap-2 animate-bounce whitespace-nowrap">
                         <i class="ph ph-rocket-launch"></i> Join World
                     </button>
                 </div>
             </div>
+
             <div id="messages-container" class="bg-pattern">
                 <div class="text-center text-gray-400 mt-10 opacity-50 text-sm">Select a chat to start messaging.</div>
             </div>
@@ -684,7 +739,7 @@
             init() {
                 this.updateCustomizationUI();
                 this.engine.updatePreview(this.state.user);
-                if(this.state.user.name) { this.switchView('messenger'); this.initPeer(); }
+                if(this.state.user.name) { this.goHome(); this.initPeer(); }
                 else { this.switchView('setup'); }
                 document.getElementById('setup-name').addEventListener('keypress', e => { if(e.key==='Enter') this.finishSetup(); });
                 document.getElementById('msg-input').addEventListener('keypress', e => { if(e.key==='Enter') this.sendMessage(); });
@@ -709,7 +764,8 @@
                 const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
                 setText('setup-lbl-type', typeNames[this.state.user.type]); setText('setup-lbl-hat', hatNames[this.state.user.hat]); setVal('setup-color-base', this.state.user.skinColor); setVal('setup-color-outfit', this.state.user.outfitColor);
                 setText('lbl-type', typeNames[this.state.user.type]); setText('lbl-hat', hatNames[this.state.user.hat]); setVal('color-base', this.state.user.skinColor); setVal('color-outfit', this.state.user.outfitColor);
-                const mini = document.getElementById('my-avatar-icon'); if(mini) mini.style.backgroundColor = this.state.user.outfitColor;
+                const mini = document.getElementById('home-avatar-preview'); 
+                if(mini) { mini.style.backgroundColor = this.state.user.outfitColor; mini.innerHTML = `<div class="flex items-center justify-center h-full text-2xl">${this.state.user.hat > 0 ? '🎩' : '🙂'}</div>`; }
             }
             saveUser() { localStorage.setItem('cozyUser', JSON.stringify(this.state.user)); }
             broadcastProfileUpdate() {
@@ -717,11 +773,18 @@
                 const packet = { type: 'profile', user: this.state.user };
                 if(this.state.isHosting) this.broadcast(packet); else Object.values(this.conns).forEach(c => this.safeSend(c, packet));
             }
-            finishSetup() { const n = document.getElementById('setup-name').value; if(!n) return alert("Name required!"); this.state.user.name = n; this.saveUser(); this.switchView('messenger'); this.initPeer(); }
+            finishSetup() { const n = document.getElementById('setup-name').value; if(!n) return alert("Name required!"); this.state.user.name = n; this.saveUser(); this.goHome(); this.initPeer(); }
             switchView(v) {
                 document.querySelectorAll('.ui-layer').forEach(el=>el.classList.add('hidden')); 
-                document.getElementById(v === 'setup' ? 'view-setup' : 'view-messenger').classList.remove('hidden');
-                if(v==='messenger') { this.renderGroups(); this.renderContacts(); document.getElementById('my-name-display').innerText = this.state.user.name; }
+                document.getElementById(v === 'setup' ? 'view-setup' : v === 'home' ? 'view-home' : 'view-messenger').classList.remove('hidden');
+                if(v==='messenger') { this.renderGroups(); this.renderContacts(); }
+            }
+            goHome() {
+                this.switchView('home');
+                document.getElementById('home-welcome-name').innerText = `Hi, ${this.state.user.name}!`;
+                document.getElementById('home-my-id').innerText = this.myId || 'Connecting...';
+                document.getElementById('stat-contacts').innerText = this.state.contacts.length;
+                document.getElementById('stat-groups').innerText = this.state.groups.length;
             }
 
             // Networking
@@ -733,11 +796,9 @@
                 this.peer = new Peer(this.myId, CONFIG.peerConfig);
                 this.peer.on('open', id => { 
                     this.myId = id; 
-                    document.getElementById('my-peer-id-display').innerText = id; 
-                    document.getElementById('status-dot').classList.replace('bg-red-500', 'bg-green-500');
-                    document.getElementById('status-dot').classList.remove('animate-pulse');
-                    document.getElementById('status-dot').title = "Connected to Network";
-                    showToast("Connected");
+                    const idDisplay = document.getElementById('home-my-id');
+                    if(idDisplay) idDisplay.innerText = id;
+                    showToast("Connected to Universe");
                     this.reconnectToContacts();
                 });
                 this.peer.on('connection', c => this.handleConnection(c));
@@ -781,18 +842,10 @@
                         const isGroupMsg = data.groupId && data.groupId.startsWith(CONFIG.HOST_ID_PREFIX);
                         if (isGroupMsg) {
                             const g = this.state.groups.find(g => g.id === data.groupId);
-                            if(g) { 
-                                g.unread = (g.unread || 0) + 1; 
-                                localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups)); 
-                                this.renderGroups(); 
-                            }
+                            if(g) { g.unread = (g.unread || 0) + 1; localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups)); this.renderGroups(); }
                         } else {
                             const c = this.state.contacts.find(c => c.id === id);
-                            if(c) { 
-                                c.unread = (c.unread || 0) + 1; 
-                                localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); 
-                                this.renderContacts(); 
-                            }
+                            if(c) { c.unread = (c.unread || 0) + 1; localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
                         }
                     }
                     
@@ -827,7 +880,12 @@
                     }
 
                     const currentIds = Object.keys(data.users);
-                    for(const uid in data.users) { if(uid !== this.myId) this.engine.updatePeer(uid, data.users[uid]); }
+                    // FIX: Explicitly filter out MY id so I don't double render myself as a peer
+                    for(const uid in data.users) { 
+                        if(uid !== this.myId) {
+                            this.engine.updatePeer(uid, data.users[uid]); 
+                        }
+                    }
                     for(const localId in this.engine.avatars) { if(!currentIds.includes(localId)) this.engine.removePeerAvatar(localId); }
                 } else if(data.type === 'world-invite') { 
                     this.pendingWorldType = data.worldType; this.state.activeWorldHostId = data.hostId || id; this.refreshWorldUI();
@@ -849,7 +907,13 @@
                 } else if(data.type === 'handshake') {
                     if(this.conns[id]) this.conns[id].user = data.user;
                     const contact = this.state.contacts.find(c => c.id === id);
-                    if(contact) { contact.name = data.user.name; localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
+                    if(contact) { 
+                        contact.name = data.user.name; 
+                        localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); 
+                        this.renderContacts(); 
+                        // FIX: Sync name to header if this is current chat
+                        if(this.state.activeChatId === id) document.getElementById('current-chat-name').innerText = contact.name;
+                    }
                     
                     if(data.isWorldHost) { this.state.activeWorldHostId = id; this.refreshWorldUI(); }
                     if(data.hostingGroup) {
@@ -872,16 +936,16 @@
                 }
             }
             broadcastWorldState() {
-                // FIX: Ensure Host is included in state broadcast
+                // FIX: Ensure Host is included in state broadcast so they appear to others
                 const users = { ...this.state.activeWorldUsers };
-                // Add host self to the list so peers can see me
                 if (this.myAvatar) {
                     users[this.myId] = { 
                         ...this.state.user, 
                         x: this.myAvatar.position.x, 
                         y: this.myAvatar.position.y, 
                         z: this.myAvatar.position.z, 
-                        ry: this.myAvatar.rotation.y 
+                        ry: this.myAvatar.rotation.y,
+                        id: this.myId // Ensure ID is explicit
                     };
                 }
                 this.broadcast({ type: 'world-state', users, worldType: this.pendingWorldType });
@@ -1054,7 +1118,8 @@
                     }
 
                 } else {
-                    document.getElementById('current-chat-name').innerText = id;
+                    const c = this.state.contacts.find(c=>c.id === id);
+                    document.getElementById('current-chat-name').innerText = c ? c.name : 'Direct Chat';
                     document.getElementById('world-actions').classList.add('hidden');
                     this.state.isHosting = false;
                     if(!this.conns[id] || !this.conns[id].open) {
@@ -1068,8 +1133,8 @@
             updateConnStatus(id, status) {
                 if(this.state.activeChatId !== id) return;
                 const el = document.getElementById('conn-indicator');
-                if(status === 'open') { el.className='w-2 h-2 rounded-full bg-green-500'; document.getElementById('chat-status').innerText="Online"; }
-                else { el.className='w-2 h-2 rounded-full bg-red-500'; document.getElementById('chat-status').innerText="Offline"; }
+                if(status === 'open') { el.className='w-2 h-2 rounded-full bg-green-500 flex-shrink-0'; document.getElementById('chat-status').innerText="Online"; }
+                else { el.className='w-2 h-2 rounded-full bg-red-500 flex-shrink-0'; document.getElementById('chat-status').innerText="Offline"; }
             }
             sendMessage() {
                 const txt = document.getElementById('msg-input').value.trim();
@@ -1131,7 +1196,11 @@
                 if (now - this.lastPosBroadcast < 100) return; // Limit to 10 sends per second
                 this.lastPosBroadcast = now;
 
-                if(this.state.isHosting) this.broadcast({type:'pos', ...pos}, this.myId);
+                if(this.state.isHosting) {
+                    // FIX: Host must update their own record in activeWorldUsers so world-state broadcasts are accurate for late joiners
+                    this.state.activeWorldUsers[this.myId] = { ...this.state.user, ...pos, id: this.myId };
+                    this.broadcast({type:'pos', ...pos}, this.myId);
+                }
                 else Object.values(this.conns).forEach(c => this.safeSend(c, {type:'pos', ...pos}));
             }
             launchWorld() {
@@ -1177,10 +1246,8 @@
                 if(!this.state.isHosting && this.state.activeWorldHostId) {
                      this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-leave' });
                 } else if (this.state.isHosting) {
-                    // If host leaves, destroy world state? Or just leave?
-                    // For now, simple host leave means stop broadcasting
                     this.state.activeWorldUsers = {};
-                    this.broadcast({ type: 'world-leave' }); // Optional: Tell everyone world is closed
+                    this.broadcast({ type: 'world-leave' }); 
                 }
             }
             shareScreen() {
