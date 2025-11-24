@@ -164,7 +164,9 @@
             <div class="glass bg-gradient-to-br from-cozy-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg animate-float relative overflow-hidden">
                 <div class="absolute top-0 right-0 opacity-10 transform translate-x-8 -translate-y-8"><i class="ph ph-planet text-[120px]"></i></div>
                 <div class="flex items-center gap-4 relative z-10">
-                    <div id="home-avatar-preview" class="w-16 h-16 bg-white/20 rounded-full border-2 border-white/30"></div>
+                    <div id="home-avatar-preview" class="w-20 h-20 bg-white/20 rounded-full border-2 border-white/30 overflow-hidden flex items-center justify-center">
+                        <!-- Canvas moves here -->
+                    </div>
                     <div>
                         <h2 id="home-welcome-name" class="text-2xl font-bold">Welcome!</h2>
                         <p class="text-sm opacity-80">Ready to explore?</p>
@@ -279,7 +281,7 @@
                 </div>
             </div>
 
-            <div id="messages-container" class="bg-pattern">
+            <div id="messages-container" class="bg-pattern px-4">
                 <div class="text-center text-gray-400 mt-10 opacity-50 text-sm">Select a chat to start messaging.</div>
             </div>
             <div id="input-area" class="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex gap-2">
@@ -764,8 +766,8 @@
                 const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
                 setText('setup-lbl-type', typeNames[this.state.user.type]); setText('setup-lbl-hat', hatNames[this.state.user.hat]); setVal('setup-color-base', this.state.user.skinColor); setVal('setup-color-outfit', this.state.user.outfitColor);
                 setText('lbl-type', typeNames[this.state.user.type]); setText('lbl-hat', hatNames[this.state.user.hat]); setVal('color-base', this.state.user.skinColor); setVal('color-outfit', this.state.user.outfitColor);
-                const mini = document.getElementById('home-avatar-preview'); 
-                if(mini) { mini.style.backgroundColor = this.state.user.outfitColor; mini.innerHTML = `<div class="flex items-center justify-center h-full text-2xl">${this.state.user.hat > 0 ? '🎩' : '🙂'}</div>`; }
+                
+                // Note: Preview canvas logic is handled by switchView/toggleSettingsModal now to move the actual canvas element
             }
             saveUser() { localStorage.setItem('cozyUser', JSON.stringify(this.state.user)); }
             broadcastProfileUpdate() {
@@ -776,7 +778,18 @@
             finishSetup() { const n = document.getElementById('setup-name').value; if(!n) return alert("Name required!"); this.state.user.name = n; this.saveUser(); this.goHome(); this.initPeer(); }
             switchView(v) {
                 document.querySelectorAll('.ui-layer').forEach(el=>el.classList.add('hidden')); 
-                document.getElementById(v === 'setup' ? 'view-setup' : v === 'home' ? 'view-home' : 'view-messenger').classList.remove('hidden');
+                const target = document.getElementById(v === 'setup' ? 'view-setup' : v === 'home' ? 'view-home' : 'view-messenger');
+                target.classList.remove('hidden');
+                
+                // Move preview canvas based on view
+                const canvas = document.getElementById('preview-canvas');
+                if(v === 'home') {
+                     document.getElementById('home-avatar-preview').innerHTML = ''; // Clear placeholder
+                     document.getElementById('home-avatar-preview').appendChild(canvas);
+                } else if (v === 'setup') {
+                     document.getElementById('setup-preview-container').appendChild(canvas);
+                }
+
                 if(v==='messenger') { this.renderGroups(); this.renderContacts(); }
             }
             goHome() {
@@ -831,7 +844,7 @@
                 conn.on('data', d => this.handleData(conn.peer, d));
                 conn.on('close', () => { 
                     delete this.conns[conn.peer]; this.engine.removePeerAvatar(conn.peer); this.updateConnStatus(conn.peer, 'closed');
-                    if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); alert("Host disconnected."); this.state.activeWorldHostId = null; this.refreshWorldUI(); }
+                    if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); alert("Host closed the world."); this.state.activeWorldHostId = null; this.refreshWorldUI(); }
                     if(this.state.isHosting) { delete this.state.activeWorldUsers[conn.peer]; this.broadcastWorldState(); }
                 });
             }
@@ -867,6 +880,13 @@
                     if(this.state.isHosting) {
                         delete this.state.activeWorldUsers[id];
                         this.broadcastWorldState(); 
+                    }
+                } else if(data.type === 'world-closed') { // NEW: Handle boot
+                    if (this.state.activeWorldHostId === id) {
+                        this.leaveWorld();
+                        alert("The Host has closed the world.");
+                        this.state.activeWorldHostId = null;
+                        this.refreshWorldUI();
                     }
                 } else if(data.type === 'world-state') {
                     // FIX: Check if world type matches, if not reload
@@ -1247,7 +1267,7 @@
                      this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-leave' });
                 } else if (this.state.isHosting) {
                     this.state.activeWorldUsers = {};
-                    this.broadcast({ type: 'world-leave' }); 
+                    this.broadcast({ type: 'world-closed' }); // BOOT EVERYONE
                 }
             }
             shareScreen() {
@@ -1283,6 +1303,11 @@
                     if(!document.getElementById('view-setup').classList.contains('hidden')) {
                         const previewCanvas = document.getElementById('preview-canvas');
                         document.getElementById('setup-preview-container').appendChild(previewCanvas);
+                    }
+                    // Return to Home if needed
+                    else if(!document.getElementById('view-home').classList.contains('hidden')) {
+                         const previewCanvas = document.getElementById('preview-canvas');
+                         document.getElementById('home-avatar-preview').appendChild(previewCanvas);
                     }
                 }
             }
