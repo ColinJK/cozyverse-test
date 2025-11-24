@@ -144,6 +144,7 @@
                     <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Outfit</span><input type="color" id="setup-color-outfit" value="#8b5cf6" onchange="app.updateLook('outfit', this.value)" class="w-8 h-8 rounded border-none"></div>
                     <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Style</span><div class="flex items-center gap-1"><button onclick="app.changeType(-1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-type" class="text-xs w-16 text-center font-mono">Human</span><button onclick="app.changeType(1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-right"></i></button></div></div>
                     <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Hat</span><div class="flex items-center gap-1"><button onclick="app.changeHat(-1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-hat" class="text-xs w-16 text-center font-mono">None</span><button onclick="app.changeHat(1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-right"></i></button></div></div>
+                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Back</span><div class="flex items-center gap-1"><button onclick="app.changeBack(-1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-back" class="text-xs w-16 text-center font-mono">None</span><button onclick="app.changeBack(1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-right"></i></button></div></div>
                 </div>
             </div>
             <button onclick="app.finishSetup()" class="w-full py-3 bg-cozy-600 hover:bg-cozy-700 text-white font-bold rounded-xl shadow-lg transform transition active:scale-95">Enter Universe</button>
@@ -326,6 +327,7 @@
                         <div class="flex justify-between items-center"><span class="text-xs">Outfit</span><input type="color" id="color-outfit" onchange="app.updateLook('outfit', this.value)" class="w-8 h-8 rounded border-none"></div>
                         <div class="flex justify-between items-center"><span class="text-xs">Style</span><div class="flex items-center gap-1"><button onclick="app.changeType(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-type" class="text-[10px] w-14 text-center truncate">Human</span><button onclick="app.changeType(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
                         <div class="flex justify-between items-center"><span class="text-xs">Hat</span><div class="flex items-center gap-1"><button onclick="app.changeHat(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-hat" class="text-[10px] w-14 text-center truncate">None</span><button onclick="app.changeHat(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
+                        <div class="flex justify-between items-center"><span class="text-xs">Back</span><div class="flex items-center gap-1"><button onclick="app.changeBack(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-back" class="text-[10px] w-14 text-center truncate">None</span><button onclick="app.changeBack(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
                     </div>
                 </div>
             </div>
@@ -414,6 +416,7 @@
                 const outfitMat = new THREE.MeshLambertMaterial({ color: outfitCol, flatShading: true });
                 const darkMat = new THREE.MeshLambertMaterial({ color: 0x222222, flatShading: true });
                 const leatherMat = new THREE.MeshLambertMaterial({ color: 0x8B4513, flatShading: true });
+                const silverMat = new THREE.MeshLambertMaterial({ color: 0xcccccc, flatShading: true });
 
                 const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 0.55, 6), outfitMat);
                 torso.position.y = 0.55; torso.castShadow = true; group.add(torso);
@@ -450,6 +453,7 @@
 
                 group.userData.limbs = { armL: armL_P, armR: armR_P, legL: legL_P, legR: legR_P };
 
+                // Hat Logic
                 const hatY = 1.3;
                 if(data.hat===1){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.5,8),darkMat); cone.position.y=hatY+0.2; const tip=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.3,8),darkMat); tip.position.set(0.1,hatY+0.5,0); tip.rotation.z=-0.5; const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,0.05,8),darkMat); brim.position.y=hatY-0.05; group.add(cone,tip,brim); }
                 else if(data.hat===2){ const h=new THREE.Mesh(new THREE.DodecahedronGeometry(0.35,0),new THREE.MeshLambertMaterial({color:0x999999,flatShading:true})); h.position.y=1.05; group.remove(head); group.add(h); const v=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.15),new THREE.MeshLambertMaterial({color:0x555})); v.position.set(0,1.05,0.25); group.add(v); const p=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.3,0.2),outfitMat); p.position.set(0,1.45,0); group.add(p); }
@@ -460,6 +464,22 @@
                 else if(data.hat===7){ const c=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.15,6),new THREE.MeshLambertMaterial({color:0xffd700})); c.position.y=hatY; group.add(c); }
                 else if(data.hat===8){ const b=new THREE.Mesh(new THREE.TorusGeometry(0.4,0.05,4,8,Math.PI),darkMat); b.position.y=1.05; const c1=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.2),outfitMat); c1.position.set(-0.4,1.05,0); const c2=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.2),outfitMat); c2.position.set(0.4,1.05,0); group.add(b,c1,c2); }
                 else if(data.hat===9){ const e1=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.2,4),skinMat); e1.position.set(-0.25,1.3,0); e1.rotation.z=0.3; const e2=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.2,4),skinMat); e2.position.set(0.25,1.3,0); e2.rotation.z=-0.3; group.add(e1,e2); }
+
+                // Back Accessory Logic
+                const backY = 0.6;
+                if(data.back===1) { // Cape
+                    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.05), new THREE.MeshLambertMaterial({color: 0xaa0000}));
+                    cape.position.set(0, backY, -0.2); cape.rotation.x = 0.2; group.add(cape);
+                } else if (data.back===2) { // Wings
+                    const wingGeo = new THREE.BoxGeometry(0.4, 0.1, 0.05);
+                    const w1 = new THREE.Mesh(wingGeo, new THREE.MeshLambertMaterial({color:0xffffff})); w1.position.set(-0.3, backY+0.2, -0.2); w1.rotation.z = 0.5;
+                    const w2 = new THREE.Mesh(wingGeo, new THREE.MeshLambertMaterial({color:0xffffff})); w2.position.set(0.3, backY+0.2, -0.2); w2.rotation.z = -0.5;
+                    group.add(w1, w2);
+                } else if (data.back===3) { // Jetpack
+                    const j1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4), silverMat); j1.position.set(-0.15, backY, -0.25);
+                    const j2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4), silverMat); j2.position.set(0.15, backY, -0.25);
+                    group.add(j1, j2);
+                }
 
                 group.userData.velocity = new THREE.Vector3();
                 return group;
@@ -556,7 +576,7 @@
                     // Try to find full profile in known users or connections
                     let profile = window.app.state.activeWorldUsers[id] || (window.app.conns[id] ? window.app.conns[id].user : null);
                     // Fallback to default if no profile found, but use data colors if present
-                    if (!profile) profile = { ...d, skinColor: d.skinColor || '#cccccc', outfitColor: d.outfitColor || '#ffffff', type: d.type||0, hat: d.hat||0 };
+                    if (!profile) profile = { ...d, skinColor: d.skinColor || '#cccccc', outfitColor: d.outfitColor || '#ffffff', type: d.type||0, hat: d.hat||0, back: d.back||0 };
                     
                     const m = Avatar.create(profile); 
                     this.scene.add(m); 
@@ -726,7 +746,7 @@
         class App {
             constructor() {
                 this.state = {
-                    user: JSON.parse(localStorage.getItem('cozyUser')) || { name: '', skinColor: '#ffdbac', outfitColor: '#8b5cf6', type: 0, hat: 0 },
+                    user: JSON.parse(localStorage.getItem('cozyUser')) || { name: '', skinColor: '#ffdbac', outfitColor: '#8b5cf6', type: 0, hat: 0, back: 0 },
                     contacts: JSON.parse(localStorage.getItem('cozyContacts')) || [],
                     groups: JSON.parse(localStorage.getItem('cozyGroups')) || [],
                     chats: JSON.parse(localStorage.getItem('cozyChats')) || {},
@@ -758,14 +778,19 @@
             updateLook(key, val) { if(key === 'skin') this.state.user.skinColor = val; if(key === 'outfit') this.state.user.outfitColor = val; this.updateAll(); }
             changeType(dir) { let v = this.state.user.type + dir; if(v < 0) v = 1; if(v > 1) v = 0; this.state.user.type = v; this.updateAll(); }
             changeHat(dir) { let v = this.state.user.hat + dir; if(v < 0) v = 9; if(v > 9) v = 0; this.state.user.hat = v; this.updateAll(); }
+            changeBack(dir) { let v = (this.state.user.back || 0) + dir; if(v < 0) v = 3; if(v > 3) v = 0; this.state.user.back = v; this.updateAll(); }
             updateAll() { this.saveUser(); this.updateCustomizationUI(); this.engine.updatePreview(this.state.user); if(this.state.user.name) this.broadcastProfileUpdate(); }
             updateCustomizationUI() {
                 const typeNames = {0:'Human', 1:'Robot'};
                 const hatNames = {0:'None', 1:'Wizard', 2:'Helmet', 3:'Cowboy', 4:'Viking', 5:'Top Hat', 6:'Cap', 7:'Crown', 8:'Phones', 9:'Cat Ears'};
+                const backNames = {0:'None', 1:'Cape', 2:'Wings', 3:'Jetpack'};
                 const setText = (id, txt) => { const el = document.getElementById(id); if(el) el.innerText = txt; };
                 const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
-                setText('setup-lbl-type', typeNames[this.state.user.type]); setText('setup-lbl-hat', hatNames[this.state.user.hat]); setVal('setup-color-base', this.state.user.skinColor); setVal('setup-color-outfit', this.state.user.outfitColor);
-                setText('lbl-type', typeNames[this.state.user.type]); setText('lbl-hat', hatNames[this.state.user.hat]); setVal('color-base', this.state.user.skinColor); setVal('color-outfit', this.state.user.outfitColor);
+                setText('setup-lbl-type', typeNames[this.state.user.type]); setText('setup-lbl-hat', hatNames[this.state.user.hat]); setText('setup-lbl-back', backNames[this.state.user.back||0]);
+                setVal('setup-color-base', this.state.user.skinColor); setVal('setup-color-outfit', this.state.user.outfitColor);
+                
+                setText('lbl-type', typeNames[this.state.user.type]); setText('lbl-hat', hatNames[this.state.user.hat]); setText('lbl-back', backNames[this.state.user.back||0]);
+                setVal('color-base', this.state.user.skinColor); setVal('color-outfit', this.state.user.outfitColor);
                 
                 // Note: Preview canvas logic is handled by switchView/toggleSettingsModal now to move the actual canvas element
             }
@@ -846,6 +871,12 @@
                     delete this.conns[conn.peer]; this.engine.removePeerAvatar(conn.peer); this.updateConnStatus(conn.peer, 'closed');
                     if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); alert("Host closed the world."); this.state.activeWorldHostId = null; this.refreshWorldUI(); }
                     if(this.state.isHosting) { delete this.state.activeWorldUsers[conn.peer]; this.broadcastWorldState(); }
+                    
+                    // FIX: If host disconnected, update group live status
+                    this.state.groups.forEach(g => {
+                         if(g.hostId === conn.peer) g.isLive = false;
+                    });
+                    this.renderGroups();
                 });
             }
             handleData(id, data) {
@@ -881,12 +912,16 @@
                         delete this.state.activeWorldUsers[id];
                         this.broadcastWorldState(); 
                     }
-                } else if(data.type === 'world-closed') { // NEW: Handle boot
+                } else if(data.type === 'world-closed') { 
                     if (this.state.activeWorldHostId === id) {
                         this.leaveWorld();
                         alert("The Host has closed the world.");
                         this.state.activeWorldHostId = null;
                         this.refreshWorldUI();
+                        
+                        // FIX: Update group status
+                        const g = this.state.groups.find(g => g.hostId === id);
+                        if(g) { g.isLive = false; this.renderGroups(); }
                     }
                 } else if(data.type === 'world-state') {
                     // FIX: Check if world type matches, if not reload
@@ -909,12 +944,21 @@
                     for(const localId in this.engine.avatars) { if(!currentIds.includes(localId)) this.engine.removePeerAvatar(localId); }
                 } else if(data.type === 'world-invite') { 
                     this.pendingWorldType = data.worldType; this.state.activeWorldHostId = data.hostId || id; this.refreshWorldUI();
+                    
+                    // FIX: Update Group Live Status
+                    const g = this.state.groups.find(g => g.hostId === (data.hostId || id));
+                    if(g) { g.isLive = true; this.renderGroups(); }
+                    
                     showToast("World Invite Received");
                 } else if(data.type === 'world-status') { 
                     if (data.isActive) {
                         this.state.activeWorldHostId = id;
                         this.pendingWorldType = data.worldType;
                         this.refreshWorldUI();
+                        
+                        // FIX: Update group live status
+                        const g = this.state.groups.find(g => g.hostId === id);
+                        if(g) { g.isLive = true; this.renderGroups(); }
                     }
                 } else if(data.type === 'request-world-status') { 
                     if(this.state.isHosting && this.engine.isWorldActive) {
@@ -935,7 +979,15 @@
                         if(this.state.activeChatId === id) document.getElementById('current-chat-name').innerText = contact.name;
                     }
                     
-                    if(data.isWorldHost) { this.state.activeWorldHostId = id; this.refreshWorldUI(); }
+                    if(data.isWorldHost) { 
+                        this.state.activeWorldHostId = id; 
+                        this.refreshWorldUI();
+                        // FIX: Update group live status
+                        if(data.hostingGroup) {
+                             const g = this.state.groups.find(x => x.id === data.hostingGroup.id);
+                             if(g) { g.isLive = true; this.renderGroups(); }
+                        }
+                    }
                     if(data.hostingGroup) {
                         this.pendingJoinGroup = data.hostingGroup;
                         document.getElementById('join-host-name').innerText = data.user.name;
@@ -1038,10 +1090,12 @@
                     const div = document.createElement('div');
                     div.className = `p-2 rounded flex items-center justify-between text-sm hover:bg-gray-200 dark:hover:bg-gray-700 ${this.state.activeChatId===g.id ? 'bg-gray-200 dark:bg-gray-700 font-bold' : ''}`;
                     const badge = (g.unread > 0) ? `<span class="ml-auto bg-red-500 text-white text-[10px] px-1.5 rounded-full">${g.unread}</span>` : '';
+                    const live = g.isLive ? `<span class="ml-1 px-1 rounded bg-red-500 text-white text-[9px] font-bold">LIVE</span>` : '';
                     div.innerHTML = `
                         <div class="flex items-center gap-2 cursor-pointer flex-1 overflow-hidden" onclick="app.openChat('${g.id}')">
                             <span class="w-2 h-2 rounded-full bg-cozy-500 flex-shrink-0"></span> 
                             <span class="truncate">${g.name}</span>
+                            ${live}
                             ${badge}
                         </div>
                         <button onclick="event.stopPropagation(); app.leaveGroup('${g.id}')" class="p-1 text-gray-400 hover:text-red-500"><i class="ph ph-trash"></i></button>
@@ -1228,6 +1282,11 @@
                 this.pendingWorldType = t; this.state.activeWorldHostId = this.myId;
                 this.enterWorld(t);
                 this.broadcast({type:'world-invite', worldType: t, hostId: this.myId});
+                
+                // FIX: Set Local Group status
+                const g = this.state.groups.find(g=>g.id===this.state.activeChatId);
+                if(g) { g.isLive = true; this.renderGroups(); }
+                
                 this.refreshWorldUI();
                 this.state.activeWorldUsers = {[this.myId]: {...this.state.user, id: this.myId}}; 
                 this.broadcastWorldState(); // Initial broadcast
@@ -1263,6 +1322,13 @@
                 
                 document.getElementById('view-messenger').classList.remove('hidden');
                 this.engine.isWorldActive=false;
+                
+                // FIX: Update Local Group Status if host
+                if(this.state.isHosting) {
+                     const g = this.state.groups.find(g=>g.id===this.state.activeChatId);
+                     if(g) { g.isLive = false; this.renderGroups(); }
+                }
+
                 if(!this.state.isHosting && this.state.activeWorldHostId) {
                      this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-leave' });
                 } else if (this.state.isHosting) {
