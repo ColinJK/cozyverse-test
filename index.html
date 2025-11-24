@@ -460,7 +460,7 @@
                 this.previewScene.add(mesh);
             }
 
-            createWorld(type) {
+            createWorld(t) {
                 // Clear old world meshes (except lights/avatars)
                 this.scene.children = this.scene.children.filter(c => c.isLight || (c.userData && c.userData.isAvatar));
                 
@@ -544,6 +544,14 @@
                     video.srcObject = stream; video.muted = true; video.play();
                     this.screenMesh.material = new THREE.MeshBasicMaterial({ map: new THREE.VideoTexture(video) });
                 }
+            }
+
+            handleIncomingStream(stream, id) {
+                const video = document.getElementById('stream-video');
+                video.srcObject = stream;
+                if (id !== this.myId) { video.muted = false; video.play(); }
+                document.getElementById('btn-watch-stream').classList.remove('hidden');
+                this.applyVideoTexture(stream);
             }
 
             setupInput() {
@@ -716,9 +724,9 @@
                 this.updateLook();
                 if(this.state.user.name) { this.goHome(); this.initPeer(); } 
                 else this.switchView('setup');
-                document.getElementById('setup-name').onkeypress = e => e.key==='Enter' && this.finishSetup();
-                document.getElementById('msg-input').onkeypress = e => e.key==='Enter' && this.sendMessage();
-                document.getElementById('join-group-input').onkeypress = e => e.key==='Enter' && this.joinGroupById();
+                document.getElementById('setup-name').addEventListener('keypress', e => { if(e.key==='Enter') this.finishSetup(); });
+                document.getElementById('msg-input').addEventListener('keypress', e => { if(e.key==='Enter') this.sendMessage(); });
+                document.getElementById('join-group-input').addEventListener('keypress', e => { if(e.key==='Enter') this.joinGroupById(); });
                 
                 // Wake Lock
                 if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
@@ -763,7 +771,38 @@
                 document.getElementById('stat-contacts').innerText = this.state.contacts.length;
                 document.getElementById('stat-groups').innerText = this.state.groups.length;
             }
-            toggleSettingsModal() { document.getElementById('settings-modal').classList.toggle('hidden'); }
+            toggleSettingsModal() { 
+                const modal = document.getElementById('settings-modal');
+                modal.classList.toggle('hidden'); 
+                this.updateCustomizationLabels(); 
+                
+                const isOpen = !modal.classList.contains('hidden');
+                if (isOpen) {
+                    // Move canvas to settings
+                    const dest = document.getElementById('settings-preview-container');
+                    const canvas = document.getElementById('preview-canvas');
+                    if (dest && canvas) dest.appendChild(canvas);
+                } else {
+                    // Move canvas back to Home or Setup
+                    const canvas = document.getElementById('preview-canvas');
+                    const isHome = !document.getElementById('view-home').classList.contains('hidden');
+                    const destId = isHome ? 'home-avatar-preview' : 'setup-preview-container';
+                    const dest = document.getElementById(destId);
+                    if (dest && canvas) dest.appendChild(canvas);
+                }
+            }
+
+            updateCustomizationLabels() {
+                const typeNames = {0:'Human', 1:'Robot'};
+                const hatNames = {0:'None', 1:'Wizard', 2:'Helmet', 3:'Cowboy', 4:'Viking', 5:'Top Hat', 6:'Cap', 7:'Crown', 8:'Phones', 9:'Cat Ears'};
+                const backNames = {0:'None', 1:'Cape', 2:'Wings', 3:'Jetpack'};
+                const ids = ['setup-lbl', 'lbl']; 
+                ids.forEach(prefix => {
+                    const t = document.getElementById(prefix+'-type'); if(t) t.innerText=typeNames[this.state.user.type];
+                    const h = document.getElementById(prefix+'-hat'); if(h) h.innerText=hatNames[this.state.user.hat];
+                    const b = document.getElementById(prefix+'-back'); if(b) b.innerText=backNames[this.state.user.back||0];
+                });
+            }
 
             // --- NETWORKING CORE ---
             initPeer() {
@@ -781,7 +820,7 @@
                 this.peer.on('connection', c => this.handleConn(c));
                 this.peer.on('call', call => { 
                     call.answer(); 
-                    call.on('stream', s => this.handleIncomingStream(s, call.peer)); 
+                    call.on('stream', s => this.engine.handleIncomingStream(s, call.peer)); 
                 });
                 this.peer.on('error', e => console.log(e));
             }
@@ -825,15 +864,21 @@
             // --- DATA HANDLER (The Brain) ---
             handleData(peerId, data) {
                 // IMPORTANT: Use the explicit senderId from the packet, fallback to connection peerId
-                // This allows Star Topology (Host relays Client A data to Client B)
                 const sourceId = data.senderId || peerId;
 
                 switch(data.type) {
                     case 'handshake':
                         this.peerProfiles[sourceId] = data.user;
-                        // Update contact name if exists
-                        const c = this.state.contacts.find(x=>x.id===sourceId);
-                        if(c && c.name === 'Unknown') { c.name = data.user.name; this.renderContacts(); }
+                        // Auto-add if not in contacts (Fixes re-adding logic)
+                        if(!this.state.contacts.find(x => x.id === sourceId)) {
+                            this.state.contacts.push({id: sourceId, name: data.user.name});
+                            localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
+                            this.renderContacts();
+                        } else {
+                            const c = this.state.contacts.find(x=>x.id===sourceId);
+                            if(c && c.name === 'Unknown') { c.name = data.user.name; this.renderContacts(); }
+                        }
+                        
                         if(data.isWorldHost) { 
                             this.state.activeWorldHostId = sourceId;
                             this.updateWorldUI();
@@ -846,7 +891,6 @@
                         break;
 
                     case 'pos':
-                        // RELAY LOGIC: If I am host, I must relay this to everyone else
                         if(this.state.isHosting) {
                             this.state.activeWorldUsers[sourceId] = { ...this.state.activeWorldUsers[sourceId], ...data, id: sourceId };
                             this.broadcast(data, peerId); 
@@ -855,15 +899,12 @@
                         break;
 
                     case 'profile':
-                        // User changed look, or just joined. Update cache.
                         this.peerProfiles[sourceId] = data.user;
                         this.engine.updatePeer(sourceId, data.user); // Redraw
-                        // Host relays profiles so everyone sees new skin
                         if(this.state.isHosting) this.broadcast(data, peerId);
                         break;
 
                     case 'world-state':
-                        // Full sync from Host
                         if(data.users) {
                             Object.keys(data.users).forEach(uid => {
                                 if(uid !== this.myId) {
@@ -872,7 +913,6 @@
                                 }
                             });
                         }
-                        // Enter world if not in
                         if(!this.engine.isWorldActive && data.worldType) {
                             this.pendingWorldType = data.worldType;
                             showToast("World Active");
@@ -882,10 +922,8 @@
 
                     case 'world-enter':
                         if(this.state.isHosting) {
-                            // New user joined my world. Add to list. Broadcast State.
                             this.state.activeWorldUsers[sourceId] = { ...data.user, id: sourceId };
                             this.broadcastWorldState(); 
-                            // Also specifically broadcast their profile to ensure visibility
                             this.broadcast({ type: 'profile', user: data.user, senderId: sourceId });
                         }
                         break;
@@ -903,7 +941,6 @@
                 }
             }
 
-            // --- NETWORKING ACTIONS ---
             broadcast(data, excludeId) {
                 Object.values(this.conns).forEach(c => {
                     if(c.peer !== excludeId && c.open) c.send(data);
@@ -912,7 +949,7 @@
 
             broadcastPosition(pos) {
                 const now = Date.now();
-                if(now - this.lastPosTime < 80) return; // Cap at ~12fps
+                if(now - this.lastPosTime < 80) return; 
                 this.lastPosTime = now;
 
                 const packet = { type: 'pos', ...pos, senderId: this.myId };
@@ -921,20 +958,18 @@
                     this.state.activeWorldUsers[this.myId] = { ...this.state.user, ...pos, id: this.myId };
                     this.broadcast(packet); 
                 } else {
-                    // Send to Host (or direct peer)
                     Object.values(this.conns).forEach(c => c.open && c.send(packet));
                 }
             }
 
             broadcastProfile() {
-                this.state.user.id = this.myId; // Ensure ID attached
+                this.state.user.id = this.myId; 
                 const packet = { type: 'profile', user: this.state.user, senderId: this.myId };
                 if(this.state.isHosting) this.broadcast(packet);
                 else Object.values(this.conns).forEach(c => c.open && c.send(packet));
             }
 
             broadcastWorldState() {
-                // Include Host (Me) in the state
                 const users = { ...this.state.activeWorldUsers };
                 if(this.engine.myAvatar) {
                     users[this.myId] = { ...this.state.user, 
@@ -945,7 +980,6 @@
                 this.broadcast({ type: 'world-state', users, worldType: this.pendingWorldType, senderId: this.myId });
             }
 
-            // --- WORLD ACTIONS ---
             launchWorld() {
                 const t = document.getElementById('world-select').value;
                 this.pendingWorldType = t;
@@ -962,7 +996,6 @@
             joinWorld() {
                 if(!this.pendingWorldType) return;
                 this.enterWorld(this.pendingWorldType);
-                // Tell host I'm here
                 if(this.state.activeWorldHostId && this.conns[this.state.activeWorldHostId]) {
                     this.conns[this.state.activeWorldHostId].send({ type: 'world-enter', user: this.state.user, senderId: this.myId });
                 }
@@ -973,7 +1006,6 @@
                 document.getElementById('world-overlay').classList.remove('hidden');
                 document.getElementById('view-messenger').classList.add('hidden');
                 
-                // Show mobile controls if needed
                 if(window.matchMedia("(max-width: 768px)").matches) {
                     document.getElementById('joystick-zone').style.display='block';
                     document.getElementById('touch-look-zone').style.display='block';
@@ -993,7 +1025,6 @@
                 
                 this.engine.isWorldActive = false;
                 this.state.isHosting = false;
-                // Inform others?
             }
 
             updateWorldUI() {
@@ -1004,25 +1035,30 @@
                 document.getElementById('join-world-btn-container').classList.toggle('hidden', !isLive || isMe);
             }
 
-            // --- MESSENGER UI ---
             sendMessage() {
                 const txt = document.getElementById('msg-input').value.trim();
                 if(!txt || !this.state.activeChatId) return;
-                const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
                 
+                // Check connection status before sending
+                let targetId = this.state.activeChatId;
+                if (!targetId.startsWith(CONFIG.HOST_ID_PREFIX) && (!this.conns[targetId] || !this.conns[targetId].open)) {
+                    showToast("Reconnecting...");
+                    this.connect(targetId);
+                    // Don't return, try to send anyway, it might queue or fail gracefully, but at least we initiated reconnect
+                }
+
+                const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
                 this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts);
                 
                 const packet = { type: 'chat', msg: txt, senderName: this.state.user.name, ts, groupId: this.state.activeChatId, senderId: this.myId };
                 
                 if(this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX)) {
-                    // Group Chat
                     if(this.state.isHosting) this.broadcast(packet);
                     else {
                         const g = this.state.groups.find(x=>x.id===this.state.activeChatId);
                         if(g && this.conns[g.hostId]) this.conns[g.hostId].send(packet);
                     }
                 } else {
-                    // Direct
                     if(this.conns[this.state.activeChatId]) this.conns[this.state.activeChatId].send(packet);
                 }
                 document.getElementById('msg-input').value = '';
@@ -1033,7 +1069,6 @@
                 this.state.chats[chatId].push({txt, isMe, name, ts});
                 localStorage.setItem('cozyChats', JSON.stringify(this.state.chats));
                 if(this.state.activeChatId === chatId) this.renderMessages(chatId);
-                // World bubble
                 if(this.engine.isWorldActive) {
                     const l = document.getElementById('world-chat-log');
                     const d = document.createElement('div'); d.innerHTML = `<span class="opacity-60 text-xs">${name}:</span> ${txt}`;
@@ -1053,7 +1088,6 @@
                 requestAnimationFrame(() => c.scrollTop = c.scrollHeight);
             }
 
-            // --- GROUP/CONTACT MANAGEMENT ---
             createGroup() {
                 const name = document.getElementById('new-group-name').value;
                 if(!name) return;
@@ -1066,11 +1100,35 @@
             }
             addContact(val) {
                 const id = val || document.getElementById('add-peer-input').value;
-                if(id && id !== this.myId && !this.state.contacts.find(c=>c.id===id)) {
-                    this.state.contacts.push({id, name: 'Unknown'});
+                if(id && id !== this.myId) {
+                    // Add to local state if new
+                    if (!this.state.contacts.find(c=>c.id===id)) {
+                        this.state.contacts.push({id, name: 'Unknown'});
+                        localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
+                        this.renderContacts();
+                    }
+                    
+                    // Check if connection exists but maybe needs a nudge
+                    if(this.conns[id] && this.conns[id].open) {
+                        // Force handshake to re-announce presence
+                        this.conns[id].send({ type: 'handshake', user: this.state.user, senderId: this.myId });
+                        this.openChat(id);
+                    } else {
+                        this.connect(id);
+                    }
+                }
+            }
+            deleteContact(id) {
+                if(confirm("Delete contact?")) {
+                    this.state.contacts = this.state.contacts.filter(c => c.id !== id);
                     localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
+                    // Close actual connection so re-adding works cleanly
+                    if(this.conns[id]) {
+                        this.conns[id].close();
+                        delete this.conns[id];
+                    }
                     this.renderContacts();
-                    this.connect(id);
+                    if(this.state.activeChatId === id) this.backToContacts();
                 }
             }
             openChat(id) {
@@ -1098,12 +1156,10 @@
             
             backToContacts() { document.getElementById('chat-panel').classList.add('hidden'); document.querySelector('#view-messenger > div:first-child').classList.remove('hidden'); }
             
-            // --- UI HELPERS ---
             renderGroups() {
                 const l = document.getElementById('groups-list'); l.innerHTML = '';
                 this.state.groups.forEach(g => {
                     const d = document.createElement('div');
-                    // Fixed click handler: Moved onclick to the div itself for better usability
                     d.className = `p-2 rounded flex items-center justify-between text-sm hover:bg-gray-700 cursor-pointer text-white ${this.state.activeChatId===g.id?'bg-gray-700 font-bold':''}`;
                     d.onclick = () => this.openChat(g.id);
                     d.innerHTML = `<span>${g.name}</span><button class="text-gray-500 hover:text-red-500" onclick="event.stopPropagation(); app.deleteGroup('${g.id}')"><i class="ph ph-trash"></i></button>`;
@@ -1116,7 +1172,6 @@
                     const d = document.createElement('div');
                     d.className = `p-2 rounded flex items-center justify-between text-sm hover:bg-gray-700 cursor-pointer text-white ${this.state.activeChatId===c.id?'bg-gray-700 font-bold':''}`;
                     d.onclick = () => this.openChat(c.id);
-                    // Added delete button
                     d.innerHTML = `
                         <div class="flex items-center gap-2 overflow-hidden">
                             <span class="truncate">${c.name}</span>
@@ -1133,7 +1188,6 @@
                 document.getElementById('chat-status').innerText = isOpen ? "Online" : "Offline";
             }
             
-            // --- MODAL TRIGGERS ---
             showCreateGroupModal() { document.getElementById('modal-create-group').classList.remove('hidden'); }
             deleteGroup(id) {
                 if(confirm("Delete group?")) {
@@ -1141,14 +1195,6 @@
                     localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
                     this.renderGroups();
                     if(this.state.activeChatId===id) this.backToContacts();
-                }
-            }
-            deleteContact(id) {
-                if(confirm("Delete contact?")) {
-                    this.state.contacts = this.state.contacts.filter(c => c.id !== id);
-                    localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
-                    this.renderContacts();
-                    if(this.state.activeChatId === id) this.backToContacts();
                 }
             }
             copyMyId() { navigator.clipboard.writeText(this.myId); showToast("ID Copied"); }
@@ -1194,22 +1240,14 @@
                 this.addContact(id);
             }
             acceptGroupInvite() {
-                 // Logic handled in handleData, this is just for the button click if needed later
                  document.getElementById('modal-join-request').classList.add('hidden');
             }
             shareScreen() {
                  navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(stream => {
                      this.engine.applyVideoTexture(stream);
-                     this.handleIncomingStream(stream, this.myId);
+                     this.engine.handleIncomingStream(stream, this.myId);
                      Object.values(this.conns).forEach(c => this.peer.call(c.peer, stream));
                  });
-            }
-            handleIncomingStream(stream, id) {
-                const video = document.getElementById('stream-video');
-                video.srcObject = stream;
-                if (id !== this.myId) { video.muted = false; video.play(); }
-                document.getElementById('btn-watch-stream').classList.remove('hidden');
-                this.engine.applyVideoTexture(stream);
             }
             openStreamModal() { document.getElementById('modal-stream').classList.remove('hidden'); const v = document.getElementById('stream-video'); v.muted = false; }
             closeStreamModal() { document.getElementById('modal-stream').classList.add('hidden'); }
