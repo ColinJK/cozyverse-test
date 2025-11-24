@@ -269,24 +269,14 @@
                 <div class="flex gap-4">
                     <div id="settings-preview-container" class="w-24 h-24 bg-gray-900 rounded-full shadow-inner border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden relative"></div>
                     <div class="flex-1 space-y-2">
-                        <div class="flex justify-between items-center"><span class="text-xs">Skin</span><input type="color" id="color-base" onchange="app.updateLook('skin', this.value)" class="w-6 h-6 rounded border-none bg-transparent cursor-pointer"></div>
-                        <div class="flex justify-between items-center"><span class="text-xs">Outfit</span><input type="color" id="color-outfit" onchange="app.updateLook('outfit', this.value)" class="w-6 h-6 rounded border-none bg-transparent cursor-pointer"></div>
-                        <div class="flex justify-between items-center"><span class="text-xs">Style</span><div class="flex items-center gap-1"><button onclick="app.changeType(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-type" class="text-xs w-14 text-center truncate">Human</span><button onclick="app.changeType(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
-                        <div class="flex justify-between items-center"><span class="text-xs">Hat</span><div class="flex items-center gap-1"><button onclick="app.changeHat(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-hat" class="text-xs w-14 text-center truncate">None</span><button onclick="app.changeHat(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
-                        <div class="flex justify-between items-center"><span class="text-xs">Back</span><div class="flex items-center gap-1"><button onclick="app.changeBack(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-back" class="text-xs w-14 text-center truncate">None</span><button onclick="app.changeBack(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
+                        <!-- Inputs similar to setup but compact -->
+                        <div class="flex justify-between"><span class="text-xs">Skin</span><input type="color" id="color-base" onchange="app.updateLook('skin', this.value)" class="w-6 h-6 rounded border-none bg-transparent cursor-pointer"></div>
+                        <div class="flex justify-between"><span class="text-xs">Outfit</span><input type="color" id="color-outfit" onchange="app.updateLook('outfit', this.value)" class="w-6 h-6 rounded border-none bg-transparent cursor-pointer"></div>
+                        <div class="flex justify-between items-center"><span class="text-xs">Type</span><button onclick="app.changeType(1)" class="text-xs bg-gray-600 px-2 rounded">Switch</button></div>
                     </div>
                 </div>
             </div>
-            
-            <div class="space-y-4 border-t border-gray-700 pt-4">
-                <div class="flex items-center justify-between"><span class="text-sm">Include Chat History</span><input type="checkbox" id="include-history-check" class="accent-cozy-500"></div>
-                <div><textarea id="import-area" class="w-full text-xs p-2 mt-1 rounded bg-gray-900 border border-gray-600 h-24 font-mono text-white" placeholder="Data..."></textarea></div>
-                <div class="flex gap-2">
-                    <button onclick="app.exportData()" class="flex-1 py-2 bg-gray-700 text-white rounded text-sm font-bold hover:bg-gray-600">Copy</button>
-                    <button onclick="app.importData()" class="flex-1 py-2 bg-cozy-600 text-white rounded text-sm font-bold hover:bg-cozy-500">Load</button>
-                </div>
-                <button onclick="app.resetProfile()" class="w-full py-2 border border-red-500 text-red-500 hover:bg-red-500/20 rounded font-bold text-sm transition">Reset Profile</button>
-            </div>
+            <button onclick="app.resetProfile()" class="w-full py-2 border border-red-500 text-red-500 hover:bg-red-500/20 rounded font-bold text-sm transition">Reset Data</button>
         </div>
     </div>
 
@@ -454,9 +444,9 @@
             }
 
             updatePreview(d) {
-                // Remove old avatar mesh
-                this.previewScene.children = this.previewScene.children.filter(c => c.isLight);
-                this.previewScene.add(Avatar.create(d));
+                this.previewScene.children.forEach(c => { if(c.type === 'Group') this.previewScene.remove(c); });
+                const mesh = Avatar.create(d);
+                this.previewScene.add(mesh);
             }
 
             createWorld(t) {
@@ -515,27 +505,40 @@
                 this.scene.add(this.myAvatar);
             }
 
+            // --- FIXED UPDATE PEER (Prevents duplicate geometry) ---
             updatePeer(id, data) {
-                // If profile missing, check cache or use default
-                if (!this.avatars[id]) {
+                let av = this.avatars[id];
+                
+                // 1. Create if missing
+                if (!av) {
                     let profile = window.app.peerProfiles[id] || { skinColor: '#888888', outfitColor: '#aaaaaa', type: 1, hat: 0 };
-                    const mesh = Avatar.create(profile);
-                    mesh.userData.isAvatar = true;
-                    this.scene.add(mesh);
-                    this.avatars[id] = mesh;
+                    av = Avatar.create(profile);
+                    av.userData.isAvatar = true;
+                    this.scene.add(av);
+                    this.avatars[id] = av;
                 }
-                const av = this.avatars[id];
+                
+                // 2. Position Update
                 if (data.x !== undefined) {
                     av.userData.targetPos = new THREE.Vector3(data.x, data.y, data.z);
                     av.userData.targetRot = data.ry;
                 }
-                // Rebuild if look changed
+                
+                // 3. Profile Update (Rebuild Mesh safely)
                 if (data.skinColor) {
+                    const oldUserData = av.userData;
                     this.scene.remove(av);
+                    
                     const newMesh = Avatar.create(data);
-                    newMesh.userData = av.userData; // Keep pos data
                     newMesh.userData.isAvatar = true;
+                    // Copy movement state ONLY, preserving new limb references
+                    if(oldUserData.targetPos) {
+                        newMesh.userData.targetPos = oldUserData.targetPos;
+                        newMesh.userData.targetRot = oldUserData.targetRot;
+                    }
                     newMesh.position.copy(av.position);
+                    newMesh.rotation.copy(av.rotation);
+                    
                     this.scene.add(newMesh);
                     this.avatars[id] = newMesh;
                 }
@@ -787,6 +790,9 @@
 
             handleData(peerId, data) {
                 const sourceId = data.senderId || peerId;
+                // Loopback protection for pos/profile
+                if(sourceId === this.myId) return;
+
                 switch(data.type) {
                     case 'handshake':
                         this.peerProfiles[sourceId] = data.user;
