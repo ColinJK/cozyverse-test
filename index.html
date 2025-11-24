@@ -328,7 +328,11 @@
     </div>
 
     <script>
-        const CONFIG = { peerConfig: { debug: 1, secure: true, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } }, HOST_ID_PREFIX: 'GROUP_' };
+        // --- GLOBAL CONFIG & HELPERS ---
+        const CONFIG = { 
+            peerConfig: { debug: 1, secure: true, config: { iceServers: [ { urls: 'stun:stun.l.google.com:19302' } ] } }, 
+            HOST_ID_PREFIX: 'GROUP_' 
+        };
         const showToast = (msg) => {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
@@ -339,39 +343,53 @@
         const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
         window.addEventListener('resize', setAppHeight); setAppHeight();
 
-        // --- AVATAR ENGINE (RESTORED ORIGINAL LOGIC) ---
+        // --- SHARED RESOURCES (Optimization) ---
+        // Re-use geometries and materials to reduce GPU calls
+        const SharedResources = {
+            mats: {},
+            geos: {},
+            init: function() {
+                this.mats.skin = new THREE.MeshLambertMaterial({ color: 0xffdbac, flatShading: true });
+                this.mats.outfit = new THREE.MeshLambertMaterial({ color: 0x8b5cf6, flatShading: true });
+                this.mats.dark = new THREE.MeshLambertMaterial({ color: 0x222222, flatShading: true });
+                this.mats.white = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+                this.geos.box = new THREE.BoxGeometry(1,1,1);
+                this.geos.sphere = new THREE.SphereGeometry(1, 8, 8);
+            },
+            getMat: function(type, colorStr) {
+                if(!colorStr) return this.mats[type];
+                const key = type + '_' + colorStr;
+                if(!this.mats[key]) {
+                    this.mats[key] = new THREE.MeshLambertMaterial({ color: new THREE.Color(colorStr), flatShading: true });
+                }
+                return this.mats[key];
+            }
+        };
+
+        // --- AVATAR ENGINE ---
         class Avatar {
             static create(data) {
                 const group = new THREE.Group();
-                const skinCol = new THREE.Color(data.skinColor || '#ffdbac');
-                const outfitCol = new THREE.Color(data.outfitColor || '#8b5cf6');
-                
-                const skinMat = new THREE.MeshLambertMaterial({ color: skinCol, flatShading: true });
-                const outfitMat = new THREE.MeshLambertMaterial({ color: outfitCol, flatShading: true });
-                const darkMat = new THREE.MeshLambertMaterial({ color: 0x222222, flatShading: true });
-                const leatherMat = new THREE.MeshLambertMaterial({ color: 0x8B4513, flatShading: true });
-                const silverMat = new THREE.MeshLambertMaterial({ color: 0xcccccc, flatShading: true });
+                const skinMat = SharedResources.getMat('skin', data.skinColor);
+                const outfitMat = SharedResources.getMat('outfit', data.outfitColor);
+                const darkMat = SharedResources.mats.dark;
 
+                // Body
                 const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 0.55, 6), outfitMat);
                 torso.position.y = 0.55; torso.castShadow = true; group.add(torso);
-                const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.1, 6), leatherMat);
-                belt.position.y = 0.45; group.add(belt);
-
+                
+                // Head
                 let head;
                 if (data.type === 1) head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.4), skinMat);
                 else head = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3, 0), skinMat);
                 head.position.y = 1.05; head.castShadow = true; group.add(head);
 
-                const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.05);
-                if(data.type === 1) {
-                    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.1), new THREE.MeshLambertMaterial({color:0x00ffff, emissive:0x00aaaa}));
-                    visor.position.set(0, 1.05, 0.21); group.add(visor);
-                } else {
-                    const eyeL = new THREE.Mesh(eyeGeo, darkMat); eyeL.position.set(-0.12, 1.05, 0.25);
-                    const eyeR = new THREE.Mesh(eyeGeo, darkMat); eyeR.position.set(0.12, 1.05, 0.25);
-                    group.add(eyeL, eyeR);
-                }
+                // Eyes (Simple)
+                const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.05), darkMat); eyeL.position.set(-0.12, 1.05, 0.25);
+                const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.05), darkMat); eyeR.position.set(0.12, 1.05, 0.25);
+                group.add(eyeL, eyeR);
 
+                // Limbs
                 const limbGeo = new THREE.BoxGeometry(0.1, 0.35, 0.1);
                 const armL_P = new THREE.Group(); armL_P.position.set(-0.32, 0.75, 0);
                 const armR_P = new THREE.Group(); armR_P.position.set(0.32, 0.75, 0);
@@ -385,47 +403,29 @@
                 const legR = new THREE.Mesh(limbGeo, darkMat); legR.position.y = -0.15;
                 legL_P.add(legL); legR_P.add(legR); group.add(legL_P, legR_P);
 
-                group.userData.limbs = { armL: armL_P, armR: armR_P, legL: legL_P, legR: legR_P };
-
-                // Hat Logic (RESTORED)
-                const hatY = 1.3;
-                if(data.hat===1){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.5,8),darkMat); cone.position.y=hatY+0.2; const tip=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.3,8),darkMat); tip.position.set(0.1,hatY+0.5,0); tip.rotation.z=-0.5; const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,0.05,8),darkMat); brim.position.y=hatY-0.05; group.add(cone,tip,brim); }
-                else if(data.hat===2){ const h=new THREE.Mesh(new THREE.DodecahedronGeometry(0.35,0),new THREE.MeshLambertMaterial({color:0x999999,flatShading:true})); h.position.y=1.05; group.remove(head); group.add(h); const v=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.15),new THREE.MeshLambertMaterial({color:0x555})); v.position.set(0,1.05,0.25); group.add(v); const p=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.3,0.2),outfitMat); p.position.set(0,1.45,0); group.add(p); }
-                else if(data.hat===3){ const b=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.05,8),leatherMat); b.position.y=hatY-0.1; const t=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.25,0.35),leatherMat); t.position.y=hatY; group.add(b,t); }
-                else if(data.hat===4){ const h=new THREE.Mesh(new THREE.SphereGeometry(0.36,8,8,0,Math.PI*2,0,Math.PI/2),new THREE.MeshLambertMaterial({color:0x777,flatShading:true})); h.position.y=1.05; const hl=new THREE.Mesh(new THREE.ConeGeometry(0.08,0.25,8),new THREE.MeshLambertMaterial({color:0xeee})); hl.position.set(-0.35,1.1,0); hl.rotation.z=0.6; const hr=new THREE.Mesh(new THREE.ConeGeometry(0.08,0.25,8),new THREE.MeshLambertMaterial({color:0xeee})); hr.position.set(0.35,1.1,0); hr.rotation.z=-0.6; group.add(h,hl,hr); }
-                else if(data.hat===5){ const b=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.05,8),darkMat); b.position.y=hatY-0.1; const t=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.4,8),darkMat); t.position.y=hatY+0.1; group.add(b,t); }
-                else if(data.hat===6){ const c=new THREE.Mesh(new THREE.SphereGeometry(0.36,8,8,0,Math.PI*2,0,Math.PI/2),outfitMat); c.position.y=1.05; const b=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.05,0.2),outfitMat); b.position.set(0,1.05,0.35); group.add(c,b); }
-                else if(data.hat===7){ const c=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.15,6),new THREE.MeshLambertMaterial({color:0xffd700})); c.position.y=hatY; group.add(c); }
-                else if(data.hat===8){ const b=new THREE.Mesh(new THREE.TorusGeometry(0.4,0.05,4,8,Math.PI),darkMat); b.position.y=1.05; const c1=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.2),outfitMat); c1.position.set(-0.4,1.05,0); const c2=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.2),outfitMat); c2.position.set(0.4,1.05,0); group.add(b,c1,c2); }
-                else if(data.hat===9){ const e1=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.2,4),skinMat); e1.position.set(-0.25,1.3,0); e1.rotation.z=0.3; const e2=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.2,4),skinMat); e2.position.set(0.25,1.3,0); e2.rotation.z=-0.3; group.add(e1,e2); }
-
-                // Back Accessory Logic (RESTORED)
-                const backY = 0.6;
-                if(data.back===1) { // Cape
-                    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.05), new THREE.MeshLambertMaterial({color: 0xaa0000}));
-                    cape.position.set(0, backY, -0.2); cape.rotation.x = 0.2; group.add(cape);
-                } else if (data.back===2) { // Wings
-                    const wingGeo = new THREE.BoxGeometry(0.4, 0.1, 0.05);
-                    const w1 = new THREE.Mesh(wingGeo, new THREE.MeshLambertMaterial({color:0xffffff})); w1.position.set(-0.3, backY+0.2, -0.2); w1.rotation.z = 0.5;
-                    const w2 = new THREE.Mesh(wingGeo, new THREE.MeshLambertMaterial({color:0xffffff})); w2.position.set(0.3, backY+0.2, -0.2); w2.rotation.z = -0.5;
-                    group.add(w1, w2);
-                } else if (data.back===3) { // Jetpack
-                    const j1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4), silverMat); j1.position.set(-0.15, backY, -0.25);
-                    const j2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4), silverMat); j2.position.set(0.15, backY, -0.25);
-                    group.add(j1, j2);
+                // HAT LOGIC
+                if(data.hat === 1) { // Wizard
+                    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.25,0.5,8), darkMat); cone.position.y = 1.4;
+                    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,0.05,8), darkMat); brim.position.y = 1.25;
+                    group.add(cone, brim);
                 }
+
+                group.userData.limbs = { armL: armL_P, armR: armR_P, legL: legL_P, legR: legR_P };
                 return group;
             }
         }
 
+        // --- 3D ENGINE ---
         class Engine {
             constructor() {
+                SharedResources.init();
                 this.scene = new THREE.Scene();
                 this.camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
                 this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('world-canvas'), antialias: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.shadowMap.enabled = true;
 
+                // Preview setup
                 this.previewRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('preview-canvas'), alpha: true, antialias: true });
                 this.previewRenderer.setSize(160, 160);
                 this.previewScene = new THREE.Scene();
@@ -454,59 +454,38 @@
             }
 
             updatePreview(d) {
+                // Remove old avatar mesh
                 this.previewScene.children.forEach(c => { if(c.type === 'Group') this.previewScene.remove(c); });
                 const mesh = Avatar.create(d);
                 this.previewScene.add(mesh);
             }
 
-            createWorld(t) {
+            createWorld(type) {
+                // Clear old world meshes (except lights/avatars)
                 this.scene.children = this.scene.children.filter(c => c.isLight || (c.userData && c.userData.isAvatar));
-                let gc = 0x5D9C59, sc = 0x87CEEB;
-                if (t === 'cabin') { this.renderer.setClearColor(0x111111); this.genCabin(); return; }
-                if (t === 'neon') { gc = 0x220022; sc=0x110011; this.scene.fog = new THREE.Fog(0x110011, 10, 50); }
-                else if (t === 'clouds') { gc=0xeeeeee; sc=0xcceeff; this.scene.fog = new THREE.Fog(0xcceeff, 10, 60); }
-                else { this.scene.fog = new THREE.Fog(0x87CEEB, 10, 60); }
-                this.renderer.setClearColor(sc);
-                const g = new THREE.Mesh(new THREE.CylinderGeometry(60, 60, 5, 32), new THREE.MeshLambertMaterial({color: gc, flatShading: true}));
-                g.position.y = -2.5; g.receiveShadow=true; this.scene.add(g);
-                if(t==='meadow') this.genTrees(30);
-                if(t==='neon') this.genNeon();
-                this.createScreen(0, 6, -12, 1.0);
-            }
+                
+                let gc = 0x5D9C59, bg = 0x87CEEB;
+                if(type === 'neon') { gc = 0x110011; bg = 0x000000; }
+                this.renderer.setClearColor(bg);
+                this.scene.fog = new THREE.Fog(bg, 10, 60);
 
-            createScreen(x,y,z,s) {
-                this.screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(16*s, 9*s), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-                this.screenMesh.position.set(x,y,z); this.scene.add(this.screenMesh);
-                const f = new THREE.Mesh(new THREE.BoxGeometry(17*s, 10*s, 0.5), new THREE.MeshLambertMaterial({color:0x222222}));
-                f.position.set(x,y,z-0.3); this.scene.add(f);
-            }
-
-            genCabin() {
-                const floor = new THREE.Mesh(new THREE.BoxGeometry(12, 0.5, 12), new THREE.MeshLambertMaterial({color: 0x5d4037, flatShading:true}));
+                const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: gc }));
+                floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; floor.position.y = 0;
                 this.scene.add(floor);
-                const wm = new THREE.MeshLambertMaterial({color: 0x8d6e63, flatShading:true});
-                const back = new THREE.Mesh(new THREE.BoxGeometry(12, 8, 0.5), wm); back.position.set(0, 4, -6);
-                const left = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8, 12), wm); left.position.set(-6, 4, 0);
-                const right = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8, 12), wm); right.position.set(6, 4, 0);
-                this.scene.add(back, left, right);
-                const p = new THREE.PointLight(0xffaa55, 1.5, 20); p.position.set(0, 6, 0); this.scene.add(p);
-                this.createScreen(0, 3.5, -5.7, 0.6);
-            }
 
-            genTrees(n) {
-                const gm = new THREE.MeshLambertMaterial({color:0x2d4c1e, flatShading:true});
-                const bm = new THREE.MeshLambertMaterial({color:0x4a3c31, flatShading:true});
-                for(let i=0; i<n; i++) {
-                    const x=(Math.random()-0.5)*80, z=(Math.random()-0.5)*80;
-                    if(Math.abs(x)<10 && Math.abs(z)<10) continue;
-                    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.5,1.5,5), bm); t.position.set(x,0.75,z);
-                    const l1 = new THREE.Mesh(new THREE.ConeGeometry(1.5,2,6), gm); l1.position.y=1.5;
-                    const l2 = new THREE.Mesh(new THREE.ConeGeometry(1.2,1.8,6), gm); l2.position.y=2.5;
-                    t.add(l1,l2); this.scene.add(t);
+                if(type === 'neon') {
+                    const grid = new THREE.GridHelper(200, 50, 0xff00ff, 0x220022);
+                    grid.position.y = 0.05; this.scene.add(grid);
+                } else if (type === 'cabin') {
+                   // Simple cabin
+                   const wallMat = new THREE.MeshLambertMaterial({color: 0x8d6e63});
+                   const wall = new THREE.Mesh(new THREE.BoxGeometry(10,5,1), wallMat); wall.position.set(0,2.5,-5); this.scene.add(wall);
                 }
-            }
 
-            genNeon() { const g = new THREE.GridHelper(100, 50, 0xff00ff, 0x00ffff); g.position.y=0.1; this.scene.add(g); }
+                // Screen
+                this.screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(16, 9), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+                this.screenMesh.position.set(0, 6, -12); this.scene.add(this.screenMesh);
+            }
 
             spawnMe(user) {
                 if(this.myAvatar) this.scene.remove(this.myAvatar);
@@ -515,47 +494,48 @@
                 this.scene.add(this.myAvatar);
             }
 
-            // --- FIXED UPDATE PEER (Prevents duplicate geometry) ---
+            // --- KEY FIX: ROBUST UPDATE PEER ---
             updatePeer(id, data) {
-                let av = this.avatars[id];
-                
-                // 1. Create if missing
-                if (!av) {
-                    let profile = window.app.peerProfiles[id] || { skinColor: '#888888', outfitColor: '#aaaaaa', type: 1, hat: 0 };
-                    av = Avatar.create(profile);
-                    av.userData.isAvatar = true;
-                    this.scene.add(av);
-                    this.avatars[id] = av;
+                if (!this.avatars[id]) {
+                    // Try to find profile in user cache (populated by profile events)
+                    let profile = window.app.peerProfiles[id];
+                    
+                    // Fallback: If no profile yet, create a placeholder (Gray Robot)
+                    // This ensures visibility even if profile packet is delayed
+                    if (!profile) {
+                         profile = { skinColor: '#888888', outfitColor: '#aaaaaa', type: 1, hat: 0 };
+                         // console.warn("Spawned placeholder for", id);
+                    }
+
+                    const mesh = Avatar.create(profile);
+                    mesh.userData.isAvatar = true;
+                    this.scene.add(mesh);
+                    this.avatars[id] = mesh;
                 }
-                
-                // 2. Position Update
+
+                const av = this.avatars[id];
+                // Only update target pos if data contains position
                 if (data.x !== undefined) {
                     av.userData.targetPos = new THREE.Vector3(data.x, data.y, data.z);
                     av.userData.targetRot = data.ry;
                 }
-                
-                // 3. Profile Update (Rebuild Mesh safely)
+                // Update look if profile changed
                 if (data.skinColor) {
-                    const oldUserData = av.userData;
                     this.scene.remove(av);
-                    
                     const newMesh = Avatar.create(data);
+                    newMesh.userData = av.userData; // Keep pos data
                     newMesh.userData.isAvatar = true;
-                    // Copy movement state ONLY, preserving new limb references
-                    if(oldUserData.targetPos) {
-                        newMesh.userData.targetPos = oldUserData.targetPos;
-                        newMesh.userData.targetRot = oldUserData.targetRot;
-                    }
                     newMesh.position.copy(av.position);
-                    newMesh.rotation.copy(av.rotation);
-                    
                     this.scene.add(newMesh);
                     this.avatars[id] = newMesh;
                 }
             }
 
             removePeerAvatar(id) {
-                if (this.avatars[id]) { this.scene.remove(this.avatars[id]); delete this.avatars[id]; }
+                if (this.avatars[id]) {
+                    this.scene.remove(this.avatars[id]);
+                    delete this.avatars[id];
+                }
             }
 
             applyVideoTexture(stream) {
@@ -567,16 +547,22 @@
             }
 
             setupInput() {
+                // Resize
                 window.addEventListener('resize', () => { 
                     this.camera.aspect = window.innerWidth/window.innerHeight; this.camera.updateProjectionMatrix(); 
                     this.renderer.setSize(window.innerWidth, window.innerHeight); 
                 });
+
+                // Keyboard
                 document.addEventListener('keydown', e => { if(document.activeElement === document.body) this.keys[e.key.toLowerCase()] = true; if(e.key.toLowerCase()==='c') this.toggleCamera(); });
                 document.addEventListener('keyup', e => this.keys[e.key.toLowerCase()] = false);
 
+                // Touch
                 const jZone = document.getElementById('joystick-zone');
                 const jKnob = document.getElementById('joystick-knob');
                 let jId = null, startX=0, startY=0;
+
+                // Simple Joystick Logic
                 jZone.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; jId = t.identifier; startX = t.clientX; startY = t.clientY; });
                 jZone.addEventListener('touchmove', e => {
                     e.preventDefault(); const t = [...e.changedTouches].find(x=>x.identifier===jId);
@@ -589,8 +575,10 @@
                         this.mobileInput.x = dx/35; this.mobileInput.y = dy/35;
                     }
                 });
-                jZone.addEventListener('touchend', () => { jId=null; jKnob.style.transform = `translate(-50%, -50%)`; this.mobileInput = {x:0, y:0}; });
+                const resetJ = () => { jId=null; jKnob.style.transform = `translate(-50%, -50%)`; this.mobileInput = {x:0, y:0}; };
+                jZone.addEventListener('touchend', resetJ);
                 
+                // Touch Look
                 const lZone = document.getElementById('touch-look-zone');
                 let lLastX=0, lLastY=0;
                 lZone.addEventListener('touchstart', e=> { lLastX=e.changedTouches[0].clientX; lLastY=e.changedTouches[0].clientY; });
@@ -604,6 +592,7 @@
                     else if(this.myAvatar) this.myAvatar.rotation.y -= dx*0.005;
                 });
 
+                // Mouse Lock
                 const c = document.getElementById('world-canvas');
                 c.addEventListener('click', () => { if(this.camMode===1) c.requestPointerLock(); });
                 document.addEventListener('mousemove', e => {
@@ -627,15 +616,19 @@
 
             loop() {
                 requestAnimationFrame(() => this.loop());
-                if(document.hidden) return;
                 
-                // Preview Rotation
+                // Optimization: Don't render if tab hidden or world closed
+                if(document.hidden) return;
+
+                // Preview rotation
                 if(this.previewScene.children.length > 2) this.previewScene.children[this.previewScene.children.length-1].rotation.y += 0.01;
                 this.previewRenderer.render(this.previewScene, this.previewCamera);
 
                 if(!this.isWorldActive || !this.myAvatar) return;
 
-                const dt = Math.min(this.clock.getDelta(), 0.1); 
+                const dt = Math.min(this.clock.getDelta(), 0.1); // Cap dt
+
+                // Movement
                 const speed = 8.0 * dt;
                 let dx=0, dz=0;
                 if(this.keys['w'] || this.keys['arrowup']) dz = -1;
@@ -650,25 +643,37 @@
                     vec.normalize().multiplyScalar(speed);
                     if(this.camMode===1) vec.applyEuler(new THREE.Euler(0, this.euler.y, 0));
                     else this.myAvatar.rotation.y = Math.atan2(vec.x, vec.z);
+                    
                     this.myAvatar.position.add(vec);
                     
+                    // Animation (Walking bob)
                     const s = Math.sin(Date.now() * 0.015) * 0.6;
                     const l = this.myAvatar.userData.limbs;
                     if(l) { l.armL.rotation.x = s; l.armR.rotation.x = -s; l.legL.rotation.x = -s; l.legR.rotation.x = s; }
-                    window.app.broadcastPosition({ x: this.myAvatar.position.x, y: this.myAvatar.position.y, z: this.myAvatar.position.z, ry: this.myAvatar.rotation.y });
+
+                    // Send Position (SenderId included implicitly by App wrapper or explicitly here)
+                    window.app.broadcastPosition({ 
+                        x: this.myAvatar.position.x, y: this.myAvatar.position.y, z: this.myAvatar.position.z, 
+                        ry: this.myAvatar.rotation.y 
+                    });
                 } else {
+                    // Reset limbs
                     const l = this.myAvatar.userData.limbs;
                     if(l) { l.armL.rotation.x = l.armR.rotation.x = l.legL.rotation.x = l.legR.rotation.x = 0; }
                 }
 
+                // Interpolate Peers
                 const lerp = 1.0 - Math.pow(0.001, dt);
                 for(const id in this.avatars) {
                     const av = this.avatars[id];
                     if(av.userData.targetPos) {
                         av.position.lerp(av.userData.targetPos, lerp);
+                        // Shortest path rotation
                         let d = av.userData.targetRot - av.rotation.y;
                         while(d > Math.PI) d -= Math.PI*2; while(d < -Math.PI) d += Math.PI*2;
                         av.rotation.y += d * lerp;
+                        
+                        // Simple walk anim for peers
                         if(av.position.distanceTo(av.userData.targetPos) > 0.1) {
                              const s = Math.sin(Date.now() * 0.015) * 0.6;
                              const l = av.userData.limbs;
@@ -677,6 +682,7 @@
                     }
                 }
 
+                // Camera Follow
                 if(this.camMode === 0) {
                     const target = this.myAvatar.position.clone().add(new THREE.Vector3(0, 5, 8));
                     this.camera.position.lerp(target, 0.1);
@@ -684,20 +690,22 @@
                 } else {
                     this.camera.position.copy(this.myAvatar.position).add(new THREE.Vector3(0,1.3,0));
                 }
+
                 this.renderer.render(this.scene, this.camera);
             }
         }
 
+        // --- MAIN APPLICATION LOGIC ---
         class App {
             constructor() {
                 this.state = {
-                    user: JSON.parse(localStorage.getItem('cozyUser')) || { name: '', skinColor: '#ffdbac', outfitColor: '#8b5cf6', type: 0, hat: 0, back: 0 },
+                    user: JSON.parse(localStorage.getItem('cozyUser')) || { name: '', skinColor: '#ffdbac', outfitColor: '#8b5cf6', type: 0, hat: 0 },
                     contacts: JSON.parse(localStorage.getItem('cozyContacts')) || [],
                     groups: JSON.parse(localStorage.getItem('cozyGroups')) || [],
                     chats: JSON.parse(localStorage.getItem('cozyChats')) || {},
                     activeChatId: null, isHosting: false, activeWorldHostId: null, activeWorldUsers: {}
                 };
-                this.peerProfiles = {};
+                this.peerProfiles = {}; // Cache for profiles of people we aren't directly connected to
                 this.peer = null; this.conns = {}; 
                 this.engine = new Engine();
                 this.lastPosTime = 0;
@@ -708,33 +716,25 @@
                 this.updateLook();
                 if(this.state.user.name) { this.goHome(); this.initPeer(); } 
                 else this.switchView('setup');
-                document.getElementById('setup-name').addEventListener('keypress', e => { if(e.key==='Enter') this.finishSetup(); });
-                document.getElementById('msg-input').addEventListener('keypress', e => { if(e.key==='Enter') this.sendMessage(); });
-                document.getElementById('join-group-input').addEventListener('keypress', e => { if(e.key==='Enter') this.joinGroupById(); });
-                if ('wakeLock' in navigator) { try { navigator.wakeLock.request('screen'); } catch(e) {} }
+                document.getElementById('setup-name').onkeypress = e => e.key==='Enter' && this.finishSetup();
+                document.getElementById('msg-input').onkeypress = e => e.key==='Enter' && this.sendMessage();
+                document.getElementById('join-group-input').onkeypress = e => e.key==='Enter' && this.joinGroupById();
+                
+                // Wake Lock
+                if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
             }
 
+            // --- LOOK & FEEL ---
             updateLook(k, v) {
                 if(k==='skin') this.state.user.skinColor = v;
                 if(k==='outfit') this.state.user.outfitColor = v;
-                this.updateCustomizationLabels();
                 this.engine.updatePreview(this.state.user);
+                // Propagate changes if online
                 if(this.myId) this.broadcastProfile();
             }
             changeType(d) { this.state.user.type = this.state.user.type===1?0:1; this.updateLook(); }
-            changeHat(d) { this.state.user.hat = (this.state.user.hat+d+10)%10; this.updateLook(); }
+            changeHat(d) { this.state.user.hat = (this.state.user.hat+d+10)%10; this.updateLook(); } // 10 hats assumed
             changeBack(d) { this.state.user.back = (this.state.user.back+d+4)%4; this.updateLook(); }
-            updateCustomizationLabels() {
-                const typeNames = {0:'Human', 1:'Robot'};
-                const hatNames = {0:'None', 1:'Wizard', 2:'Helmet', 3:'Cowboy', 4:'Viking', 5:'Top Hat', 6:'Cap', 7:'Crown', 8:'Phones', 9:'Cat Ears'};
-                const backNames = {0:'None', 1:'Cape', 2:'Wings', 3:'Jetpack'};
-                const ids = ['setup-lbl', 'lbl']; // update both setup and settings modals
-                ids.forEach(prefix => {
-                    const t = document.getElementById(prefix+'-type'); if(t) t.innerText=typeNames[this.state.user.type];
-                    const h = document.getElementById(prefix+'-hat'); if(h) h.innerText=hatNames[this.state.user.hat];
-                    const b = document.getElementById(prefix+'-back'); if(b) b.innerText=backNames[this.state.user.back||0];
-                });
-            }
 
             finishSetup() {
                 const n = document.getElementById('setup-name').value.trim();
@@ -744,13 +744,17 @@
                 this.goHome(); this.initPeer();
             }
 
+            // --- NAVIGATION ---
             switchView(v) {
                 document.querySelectorAll('.ui-layer').forEach(e => e.classList.add('hidden'));
                 document.getElementById('view-'+v).classList.remove('hidden');
+                
+                // Canvas juggling for preview
                 const c = document.getElementById('preview-canvas');
                 const t = v==='setup' ? 'setup-preview-container' : (v==='home'?'home-avatar-preview':'settings-preview-container');
                 const el = document.getElementById(t);
                 if(el) el.appendChild(c);
+
                 if(v==='messenger') { this.renderGroups(); this.renderContacts(); }
             }
             goHome() {
@@ -759,15 +763,14 @@
                 document.getElementById('stat-contacts').innerText = this.state.contacts.length;
                 document.getElementById('stat-groups').innerText = this.state.groups.length;
             }
-            toggleSettingsModal() { 
-                document.getElementById('settings-modal').classList.toggle('hidden'); 
-                this.updateCustomizationLabels(); 
-            }
+            toggleSettingsModal() { document.getElementById('settings-modal').classList.toggle('hidden'); }
 
+            // --- NETWORKING CORE ---
             initPeer() {
                 let id = localStorage.getItem('cozy_peer_id') || crypto.randomUUID();
                 localStorage.setItem('cozy_peer_id', id);
                 this.myId = id;
+                
                 this.peer = new Peer(this.myId, CONFIG.peerConfig);
                 this.peer.on('open', id => {
                     this.myId = id; 
@@ -776,16 +779,32 @@
                     this.reconnect();
                 });
                 this.peer.on('connection', c => this.handleConn(c));
-                this.peer.on('call', call => { call.answer(); call.on('stream', s => this.engine.handleIncomingStream(s, call.peer)); });
+                this.peer.on('call', call => { 
+                    call.answer(); 
+                    call.on('stream', s => this.handleIncomingStream(s, call.peer)); 
+                });
+                this.peer.on('error', e => console.log(e));
             }
 
-            reconnect() { this.state.contacts.forEach(c => { if(!this.conns[c.id]) this.connect(c.id); }); }
-            connect(id) { if(id === this.myId || this.conns[id]) return; const conn = this.peer.connect(id); this.handleConn(conn); }
+            reconnect() {
+                this.state.contacts.forEach(c => { if(!this.conns[c.id]) this.connect(c.id); });
+            }
+            connect(id) {
+                if(id === this.myId || this.conns[id]) return;
+                const conn = this.peer.connect(id);
+                this.handleConn(conn);
+            }
             handleConn(conn) {
                 this.conns[conn.peer] = conn;
                 conn.on('open', () => {
+                    // Send handshake with IS_HOST flag if applicable
                     const isGroupHost = this.state.groups.some(g => g.id === this.state.activeChatId && g.hostId === this.myId);
-                    conn.send({ type: 'handshake', user: this.state.user, senderId: this.myId, isWorldHost: this.state.isHosting && this.engine.isWorldActive });
+                    conn.send({ 
+                        type: 'handshake', 
+                        user: this.state.user, 
+                        senderId: this.myId,
+                        isWorldHost: this.state.isHosting && this.engine.isWorldActive
+                    });
                     this.updateConnUI(conn.peer, true);
                 });
                 conn.on('data', d => this.handleData(conn.peer, d));
@@ -793,58 +812,84 @@
                     delete this.conns[conn.peer];
                     this.engine.removePeerAvatar(conn.peer);
                     this.updateConnUI(conn.peer, false);
-                    if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); showToast("Host Disconnected"); }
-                    if(this.state.isHosting) { delete this.state.activeWorldUsers[conn.peer]; this.broadcastWorldState(); }
+                    if(this.state.activeWorldHostId === conn.peer) {
+                        this.leaveWorld(); showToast("Host Disconnected");
+                    }
+                    if(this.state.isHosting) {
+                        delete this.state.activeWorldUsers[conn.peer];
+                        this.broadcastWorldState();
+                    }
                 });
             }
 
+            // --- DATA HANDLER (The Brain) ---
             handleData(peerId, data) {
+                // IMPORTANT: Use the explicit senderId from the packet, fallback to connection peerId
+                // This allows Star Topology (Host relays Client A data to Client B)
                 const sourceId = data.senderId || peerId;
-                if(sourceId === this.myId) return;
 
                 switch(data.type) {
                     case 'handshake':
                         this.peerProfiles[sourceId] = data.user;
-                        // AUTO-ADD CONTACT IF MISSING (Fixes 1-way visibility)
-                        if(!this.state.contacts.find(x => x.id === sourceId)) {
-                            this.state.contacts.push({id: sourceId, name: data.user.name});
-                            localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
-                            this.renderContacts();
-                        } else {
-                            // Update existing name if unknown
-                            const c = this.state.contacts.find(x=>x.id===sourceId);
-                            if(c && c.name === 'Unknown') { c.name = data.user.name; this.renderContacts(); }
+                        // Update contact name if exists
+                        const c = this.state.contacts.find(x=>x.id===sourceId);
+                        if(c && c.name === 'Unknown') { c.name = data.user.name; this.renderContacts(); }
+                        if(data.isWorldHost) { 
+                            this.state.activeWorldHostId = sourceId;
+                            this.updateWorldUI();
                         }
-                        
-                        if(data.isWorldHost) { this.state.activeWorldHostId = sourceId; this.updateWorldUI(); }
                         break;
+                    
                     case 'chat':
                         this.addMessage(data.groupId || peerId, data.msg, false, data.senderName, data.ts);
-                        if(this.state.isHosting) this.broadcast(data, peerId);
+                        if(this.state.isHosting) this.broadcast(data, peerId); // Relay chat
                         break;
+
                     case 'pos':
+                        // RELAY LOGIC: If I am host, I must relay this to everyone else
                         if(this.state.isHosting) {
                             this.state.activeWorldUsers[sourceId] = { ...this.state.activeWorldUsers[sourceId], ...data, id: sourceId };
                             this.broadcast(data, peerId); 
                         }
                         this.engine.updatePeer(sourceId, data);
                         break;
+
                     case 'profile':
+                        // User changed look, or just joined. Update cache.
                         this.peerProfiles[sourceId] = data.user;
-                        this.engine.updatePeer(sourceId, data.user);
+                        this.engine.updatePeer(sourceId, data.user); // Redraw
+                        // Host relays profiles so everyone sees new skin
                         if(this.state.isHosting) this.broadcast(data, peerId);
                         break;
+
                     case 'world-state':
-                        if(data.users) Object.keys(data.users).forEach(uid => { if(uid !== this.myId) { this.peerProfiles[uid] = data.users[uid]; this.engine.updatePeer(uid, data.users[uid]); } });
-                        if(!this.engine.isWorldActive && data.worldType) { this.pendingWorldType = data.worldType; showToast("World Active"); this.updateWorldUI(); }
+                        // Full sync from Host
+                        if(data.users) {
+                            Object.keys(data.users).forEach(uid => {
+                                if(uid !== this.myId) {
+                                    this.peerProfiles[uid] = data.users[uid]; // Update cache
+                                    this.engine.updatePeer(uid, data.users[uid]);
+                                }
+                            });
+                        }
+                        // Enter world if not in
+                        if(!this.engine.isWorldActive && data.worldType) {
+                            this.pendingWorldType = data.worldType;
+                            showToast("World Active");
+                            this.updateWorldUI();
+                        }
                         break;
+
                     case 'world-enter':
                         if(this.state.isHosting) {
+                            // New user joined my world. Add to list. Broadcast State.
                             this.state.activeWorldUsers[sourceId] = { ...data.user, id: sourceId };
                             this.broadcastWorldState(); 
+                            // Also specifically broadcast their profile to ensure visibility
                             this.broadcast({ type: 'profile', user: data.user, senderId: sourceId });
                         }
                         break;
+
                     case 'group-invite':
                         if(confirm(`Join group "${data.groupName}"?`)) {
                             if(!this.state.groups.find(g=>g.id===data.groupId)) {
@@ -858,57 +903,99 @@
                 }
             }
 
-            broadcast(data, excludeId) { Object.values(this.conns).forEach(c => { if(c.peer !== excludeId && c.open) c.send(data); }); }
-            broadcastPosition(pos) {
-                const now = Date.now(); if(now - this.lastPosTime < 80) return; this.lastPosTime = now;
-                const packet = { type: 'pos', ...pos, senderId: this.myId };
-                if(this.state.isHosting) { this.state.activeWorldUsers[this.myId] = { ...this.state.user, ...pos, id: this.myId }; this.broadcast(packet); } 
-                else { Object.values(this.conns).forEach(c => c.open && c.send(packet)); }
+            // --- NETWORKING ACTIONS ---
+            broadcast(data, excludeId) {
+                Object.values(this.conns).forEach(c => {
+                    if(c.peer !== excludeId && c.open) c.send(data);
+                });
             }
+
+            broadcastPosition(pos) {
+                const now = Date.now();
+                if(now - this.lastPosTime < 80) return; // Cap at ~12fps
+                this.lastPosTime = now;
+
+                const packet = { type: 'pos', ...pos, senderId: this.myId };
+                
+                if(this.state.isHosting) {
+                    this.state.activeWorldUsers[this.myId] = { ...this.state.user, ...pos, id: this.myId };
+                    this.broadcast(packet); 
+                } else {
+                    // Send to Host (or direct peer)
+                    Object.values(this.conns).forEach(c => c.open && c.send(packet));
+                }
+            }
+
             broadcastProfile() {
-                this.state.user.id = this.myId; 
+                this.state.user.id = this.myId; // Ensure ID attached
                 const packet = { type: 'profile', user: this.state.user, senderId: this.myId };
                 if(this.state.isHosting) this.broadcast(packet);
                 else Object.values(this.conns).forEach(c => c.open && c.send(packet));
             }
+
             broadcastWorldState() {
+                // Include Host (Me) in the state
                 const users = { ...this.state.activeWorldUsers };
-                if(this.engine.myAvatar) users[this.myId] = { ...this.state.user, x: this.engine.myAvatar.position.x, y: this.engine.myAvatar.position.y, z: this.engine.myAvatar.position.z, ry: this.engine.myAvatar.rotation.y, id: this.myId };
+                if(this.engine.myAvatar) {
+                    users[this.myId] = { ...this.state.user, 
+                        x: this.engine.myAvatar.position.x, y: this.engine.myAvatar.position.y, z: this.engine.myAvatar.position.z,
+                        ry: this.engine.myAvatar.rotation.y, id: this.myId 
+                    };
+                }
                 this.broadcast({ type: 'world-state', users, worldType: this.pendingWorldType, senderId: this.myId });
             }
 
+            // --- WORLD ACTIONS ---
             launchWorld() {
                 const t = document.getElementById('world-select').value;
                 this.pendingWorldType = t;
                 this.state.activeWorldHostId = this.myId;
-                this.state.activeWorldUsers = {};
+                this.state.activeWorldUsers = {}; // Reset
+                
                 this.enterWorld(t);
-                this.state.isHosting = true;
+                this.state.isHosting = true; // Flag enabled
+                
                 this.broadcast({ type: 'world-state', worldType: t, users: {}, senderId: this.myId });
                 this.updateWorldUI();
             }
+
             joinWorld() {
                 if(!this.pendingWorldType) return;
                 this.enterWorld(this.pendingWorldType);
+                // Tell host I'm here
                 if(this.state.activeWorldHostId && this.conns[this.state.activeWorldHostId]) {
                     this.conns[this.state.activeWorldHostId].send({ type: 'world-enter', user: this.state.user, senderId: this.myId });
                 }
             }
+
             enterWorld(type) {
                 document.getElementById('world-canvas').style.display='block';
                 document.getElementById('world-overlay').classList.remove('hidden');
                 document.getElementById('view-messenger').classList.add('hidden');
-                if(window.matchMedia("(max-width: 768px)").matches) { document.getElementById('joystick-zone').style.display='block'; document.getElementById('touch-look-zone').style.display='block'; }
-                this.engine.isWorldActive = true; this.engine.createWorld(type); this.engine.spawnMe(this.state.user);
+                
+                // Show mobile controls if needed
+                if(window.matchMedia("(max-width: 768px)").matches) {
+                    document.getElementById('joystick-zone').style.display='block';
+                    document.getElementById('touch-look-zone').style.display='block';
+                }
+
+                this.engine.isWorldActive = true;
+                this.engine.createWorld(type);
+                this.engine.spawnMe(this.state.user);
             }
+
             leaveWorld() {
                 document.getElementById('world-canvas').style.display='none';
                 document.getElementById('world-overlay').classList.add('hidden');
                 document.getElementById('joystick-zone').style.display='none';
                 document.getElementById('touch-look-zone').style.display='none';
                 document.getElementById('view-messenger').classList.remove('hidden');
-                this.engine.isWorldActive = false; this.state.isHosting = false;
+                
+                this.engine.isWorldActive = false;
+                this.state.isHosting = false;
+                // Inform others?
             }
+
             updateWorldUI() {
                 const isLive = !!this.state.activeWorldHostId;
                 const isMe = this.state.activeWorldHostId === this.myId;
@@ -917,36 +1004,56 @@
                 document.getElementById('join-world-btn-container').classList.toggle('hidden', !isLive || isMe);
             }
 
+            // --- MESSENGER UI ---
             sendMessage() {
                 const txt = document.getElementById('msg-input').value.trim();
                 if(!txt || !this.state.activeChatId) return;
                 const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                
                 this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts);
+                
                 const packet = { type: 'chat', msg: txt, senderName: this.state.user.name, ts, groupId: this.state.activeChatId, senderId: this.myId };
+                
                 if(this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX)) {
+                    // Group Chat
                     if(this.state.isHosting) this.broadcast(packet);
-                    else { const g = this.state.groups.find(x=>x.id===this.state.activeChatId); if(g && this.conns[g.hostId]) this.conns[g.hostId].send(packet); }
-                } else { if(this.conns[this.state.activeChatId]) this.conns[this.state.activeChatId].send(packet); }
+                    else {
+                        const g = this.state.groups.find(x=>x.id===this.state.activeChatId);
+                        if(g && this.conns[g.hostId]) this.conns[g.hostId].send(packet);
+                    }
+                } else {
+                    // Direct
+                    if(this.conns[this.state.activeChatId]) this.conns[this.state.activeChatId].send(packet);
+                }
                 document.getElementById('msg-input').value = '';
             }
+
             addMessage(chatId, txt, isMe, name, ts) {
                 if(!this.state.chats[chatId]) this.state.chats[chatId] = [];
                 this.state.chats[chatId].push({txt, isMe, name, ts});
                 localStorage.setItem('cozyChats', JSON.stringify(this.state.chats));
                 if(this.state.activeChatId === chatId) this.renderMessages(chatId);
-                if(this.engine.isWorldActive) { const l = document.getElementById('world-chat-log'); const d = document.createElement('div'); d.innerHTML = `<span class="opacity-60 text-xs">${name}:</span> ${txt}`; l.appendChild(d); l.scrollTop = l.scrollHeight; }
+                // World bubble
+                if(this.engine.isWorldActive) {
+                    const l = document.getElementById('world-chat-log');
+                    const d = document.createElement('div'); d.innerHTML = `<span class="opacity-60 text-xs">${name}:</span> ${txt}`;
+                    l.appendChild(d); l.scrollTop = l.scrollHeight;
+                }
             }
+
             renderMessages(id) {
                 const c = document.getElementById('messages-container'); c.innerHTML = '';
                 const msgs = this.state.chats[id] || [];
                 msgs.forEach(m => {
-                    const d = document.createElement('div'); d.className = `msg-row ${m.isMe?'msg-me':'msg-them'}`;
+                    const d = document.createElement('div');
+                    d.className = `msg-row ${m.isMe?'msg-me':'msg-them'}`;
                     d.innerHTML = `<div class="msg-content"><div class="text-[10px] opacity-50 px-1 mb-0.5">${m.name} • ${m.ts}</div><div class="msg-bubble">${m.txt}</div></div>`;
                     c.appendChild(d);
                 });
                 requestAnimationFrame(() => c.scrollTop = c.scrollHeight);
             }
 
+            // --- GROUP/CONTACT MANAGEMENT ---
             createGroup() {
                 const name = document.getElementById('new-group-name').value;
                 if(!name) return;
@@ -970,6 +1077,7 @@
                 this.state.activeChatId = id;
                 document.getElementById('chat-panel').classList.remove('hidden');
                 if(window.innerWidth < 768) document.querySelector('#view-messenger > div:first-child').classList.add('hidden');
+                
                 const isGroup = id.startsWith(CONFIG.HOST_ID_PREFIX);
                 if(isGroup) {
                     const g = this.state.groups.find(x=>x.id===id);
@@ -987,8 +1095,10 @@
                 this.renderMessages(id);
                 this.updateWorldUI();
             }
+            
             backToContacts() { document.getElementById('chat-panel').classList.add('hidden'); document.querySelector('#view-messenger > div:first-child').classList.remove('hidden'); }
             
+            // --- UI HELPERS ---
             renderGroups() {
                 const l = document.getElementById('groups-list'); l.innerHTML = '';
                 this.state.groups.forEach(g => {
@@ -1004,16 +1114,43 @@
                 const l = document.getElementById('contacts-list'); l.innerHTML = '';
                 this.state.contacts.forEach(c => {
                     const d = document.createElement('div');
-                    // Fixed click handler: Moved onclick to the div itself for better usability
                     d.className = `p-2 rounded flex items-center justify-between text-sm hover:bg-gray-700 cursor-pointer text-white ${this.state.activeChatId===c.id?'bg-gray-700 font-bold':''}`;
                     d.onclick = () => this.openChat(c.id);
-                    d.innerHTML = `<span>${c.name}</span><span class="w-2 h-2 rounded-full ${this.conns[c.id]?'bg-green-500':'bg-gray-600'}"></span>`;
+                    // Added delete button
+                    d.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="truncate">${c.name}</span>
+                            <span class="w-2 h-2 rounded-full ${this.conns[c.id]?'bg-green-500':'bg-gray-600'} flex-shrink-0"></span>
+                        </div>
+                        <button class="text-gray-500 hover:text-red-500 p-1" onclick="event.stopPropagation(); app.deleteContact('${c.id}')"><i class="ph ph-trash"></i></button>
+                    `;
                     l.appendChild(d);
                 });
             }
-            updateConnUI(id, isOpen) { if(this.state.activeChatId !== id) return; document.getElementById('conn-indicator').className = `w-2 h-2 rounded-full ${isOpen?'bg-green-500':'bg-red-500'} flex-shrink-0`; document.getElementById('chat-status').innerText = isOpen ? "Online" : "Offline"; }
+            updateConnUI(id, isOpen) {
+                if(this.state.activeChatId !== id) return;
+                document.getElementById('conn-indicator').className = `w-2 h-2 rounded-full ${isOpen?'bg-green-500':'bg-red-500'} flex-shrink-0`;
+                document.getElementById('chat-status').innerText = isOpen ? "Online" : "Offline";
+            }
+            
+            // --- MODAL TRIGGERS ---
             showCreateGroupModal() { document.getElementById('modal-create-group').classList.remove('hidden'); }
-            deleteGroup(id) { if(confirm("Delete group?")) { this.state.groups = this.state.groups.filter(g=>g.id!==id); localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups)); this.renderGroups(); if(this.state.activeChatId===id) this.backToContacts(); } }
+            deleteGroup(id) {
+                if(confirm("Delete group?")) {
+                    this.state.groups = this.state.groups.filter(g=>g.id!==id);
+                    localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
+                    this.renderGroups();
+                    if(this.state.activeChatId===id) this.backToContacts();
+                }
+            }
+            deleteContact(id) {
+                if(confirm("Delete contact?")) {
+                    this.state.contacts = this.state.contacts.filter(c => c.id !== id);
+                    localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
+                    this.renderContacts();
+                    if(this.state.activeChatId === id) this.backToContacts();
+                }
+            }
             copyMyId() { navigator.clipboard.writeText(this.myId); showToast("ID Copied"); }
             copyGroupInvite() { navigator.clipboard.writeText(this.myId); showToast("Host ID Copied"); }
             showInviteModal() {
@@ -1022,7 +1159,12 @@
                     const b = document.createElement('button');
                     b.className = "w-full p-2 text-left hover:bg-gray-700 rounded text-white flex justify-between";
                     b.innerHTML = `<span>${c.name}</span>`;
-                    b.onclick = () => { if(this.conns[c.id]) { this.conns[c.id].send({ type: 'group-invite', groupName: document.getElementById('current-chat-name').innerText, groupId: this.state.activeChatId, senderId: this.myId }); showToast("Sent"); } };
+                    b.onclick = () => {
+                        if(this.conns[c.id]) {
+                            this.conns[c.id].send({ type: 'group-invite', groupName: document.getElementById('current-chat-name').innerText, groupId: this.state.activeChatId, senderId: this.myId });
+                            showToast("Sent");
+                        }
+                    };
                     l.appendChild(b);
                 });
                 document.getElementById('modal-invite-contact').classList.remove('hidden');
@@ -1058,9 +1200,16 @@
             shareScreen() {
                  navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(stream => {
                      this.engine.applyVideoTexture(stream);
-                     this.engine.handleIncomingStream(stream, this.myId);
+                     this.handleIncomingStream(stream, this.myId);
                      Object.values(this.conns).forEach(c => this.peer.call(c.peer, stream));
                  });
+            }
+            handleIncomingStream(stream, id) {
+                const video = document.getElementById('stream-video');
+                video.srcObject = stream;
+                if (id !== this.myId) { video.muted = false; video.play(); }
+                document.getElementById('btn-watch-stream').classList.remove('hidden');
+                this.engine.applyVideoTexture(stream);
             }
             openStreamModal() { document.getElementById('modal-stream').classList.remove('hidden'); const v = document.getElementById('stream-video'); v.muted = false; }
             closeStreamModal() { document.getElementById('modal-stream').classList.add('hidden'); }
