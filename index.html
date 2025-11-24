@@ -571,7 +571,13 @@
                     this.camera.aspect = window.innerWidth/window.innerHeight; this.camera.updateProjectionMatrix(); 
                     this.renderer.setSize(window.innerWidth, window.innerHeight); 
                 });
-                document.addEventListener('keydown', e => { if(document.activeElement === document.body) this.keys[e.key.toLowerCase()] = true; if(e.key.toLowerCase()==='c') this.toggleCamera(); });
+                document.addEventListener('keydown', e => {
+                    // FIXED: Don't trigger game controls when typing in inputs
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                    if(document.activeElement === document.body) this.keys[e.key.toLowerCase()] = true;
+                    if(e.key.toLowerCase()==='c') this.toggleCamera(); 
+                });
                 document.addEventListener('keyup', e => this.keys[e.key.toLowerCase()] = false);
 
                 const jZone = document.getElementById('joystick-zone');
@@ -849,8 +855,16 @@
                         if(data.isWorldHost) { this.state.activeWorldHostId = sourceId; this.updateWorldUI(); }
                         break;
                     case 'chat':
-                        this.addMessage(data.groupId || peerId, data.msg, false, data.senderName, data.ts);
-                        if(this.state.isHosting) this.broadcast(data, peerId);
+                        this.addMessage(data.groupId || sourceId, data.msg, false, data.senderName, data.ts);
+                        
+                        // FIX: Host always relays group messages regardless of current UI state
+                        const targetGroupId = data.groupId;
+                        if (targetGroupId) {
+                            const group = this.state.groups.find(g => g.id === targetGroupId);
+                            if (group && group.hostId === this.myId) {
+                                this.broadcast(data, sourceId); // exclude sender
+                            }
+                        }
                         break;
                     case 'pos':
                         if(this.state.isHosting) {
@@ -963,11 +977,28 @@
 
                 const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
                 this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts);
-                const packet = { type: 'chat', msg: txt, senderName: this.state.user.name, ts, groupId: this.state.activeChatId, senderId: this.myId };
-                if(this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX)) {
+                
+                // FIX: Explicitly send null groupId for DM so receiver uses senderId as key
+                const packet = { 
+                    type: 'chat', 
+                    msg: txt, 
+                    senderName: this.state.user.name, 
+                    ts, 
+                    groupId: isGroup ? this.state.activeChatId : null, 
+                    senderId: this.myId 
+                };
+
+                if(isGroup) {
                     if(this.state.isHosting) this.broadcast(packet);
-                    else { const g = this.state.groups.find(x=>x.id===this.state.activeChatId); if(g && this.conns[g.hostId]) this.conns[g.hostId].send(packet); }
-                } else { if(this.conns[this.state.activeChatId]) this.conns[this.state.activeChatId].send(packet); }
+                    else { const g = this.state.groups.find(x=>x.id===this.state.activeChatId); if(g && this.conns[g.hostId] && this.conns[g.hostId].open) this.conns[g.hostId].send(packet); }
+                } else { 
+                    // FIX: check for open connection before sending
+                    if(this.conns[this.state.activeChatId] && this.conns[this.state.activeChatId].open) {
+                        this.conns[this.state.activeChatId].send(packet);
+                    } else {
+                        showToast("Offline");
+                    }
+                }
                 document.getElementById('msg-input').value = '';
             }
             addMessage(chatId, txt, isMe, name, ts) {
