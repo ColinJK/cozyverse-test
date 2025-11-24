@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>CozyVerse | P2P Messenger & World</title>
-    <meta name="theme-color" content="#8b5cf6">
+    <meta name="theme-color" content="#111827">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
@@ -14,97 +14,44 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
     <style>
-        :root {
-            --app-height: 100%;
-        }
-
-        /* STRICT MOBILE LAYOUT LOCK */
+        :root { --app-height: 100%; }
         html, body {
-            height: 100%;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden; /* Prevent document scroll */
-            position: fixed; /* Stop elastic scrolling/bouncing */
-            background-color: #111827; /* dark-900 match */
+            height: 100%; width: 100%; margin: 0; padding: 0;
+            overflow: hidden; position: fixed;
+            background-color: #111827;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #f3f4f6;
         }
         
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
-        .dark .glass { background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
         
         /* Mobile Controls */
-        #joystick-zone { position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px; z-index: 60; display: none; background: rgba(255,255,255,0.1); border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); touch-action: none; }
-        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255,255,255,0.5); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(0,0,0,0.3); pointer-events: none; }
+        #joystick-zone { position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px; z-index: 60; display: none; background: rgba(255,255,255,0.05); border-radius: 50%; border: 2px solid rgba(255,255,255,0.1); touch-action: none; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); backdrop-filter: blur(4px); pointer-events: none; }
         #touch-look-zone { position: absolute; top: 0; right: 0; width: 50%; height: 100%; z-index: 55; touch-action: none; display: none; }
 
         #world-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; display: none; outline: none; }
         
-        /* UI LAYER - Flex Parent */
+        /* UI LAYER */
         .ui-layer { 
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%; /* Fallback */
-            height: var(--app-height); /* JS Computed */
-            z-index: 10; 
-            display: flex; 
-            flex-direction: column; 
-            overflow: hidden; /* Contain all children */
+            position: absolute; top: 0; left: 0; width: 100%; height: var(--app-height);
+            z-index: 10; display: flex; flex-direction: column; overflow: hidden;
         }
         
-        /* CHAT PANEL - Locked Column */
-        #chat-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            max-height: 100%;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* CHAT HEADER - Responsive Height */
-        #chat-header {
-            flex-shrink: 0;
-            z-index: 30;
-        }
-
-        /* MESSAGES - Scrollable Area */
-        #messages-container {
-            flex: 1 1 auto; /* Grow to fill space */
-            overflow-y: auto; /* Enable Scroll */
-            height: 0; /* CRITICAL: Forces flex to calculate height based on available space, not content */
-            min-height: 0;
-            width: 100%;
-            -webkit-overflow-scrolling: touch; /* Smooth iOS scroll */
-            overscroll-behavior: contain;
-            padding-bottom: 10px;
-        }
-
-        /* INPUT AREA - Fixed Bottom */
-        #input-area {
-            flex-shrink: 0; /* Prevent shrinking */
-            width: 100%;
-            z-index: 40;
-            padding-bottom: max(10px, env(safe-area-inset-bottom)); /* Safe area + padding */
-        }
+        #chat-panel { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; }
+        #messages-container { flex: 1 1 auto; overflow-y: auto; height: 0; min-height: 0; width: 100%; -webkit-overflow-scrolling: touch; padding-bottom: 10px; }
+        #input-area { flex-shrink: 0; width: 100%; z-index: 40; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 
         .msg-row { display: flex; width: 100%; margin-bottom: 8px; }
         .msg-content { display: flex; flex-direction: column; max-width: 80%; }
-        .msg-bubble { padding: 8px 12px; border-radius: 16px; font-size: 0.95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.1); width: fit-content; word-break: break-word; line-height: 1.4; }
+        .msg-bubble { padding: 8px 12px; border-radius: 16px; font-size: 0.95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.2); width: fit-content; word-break: break-word; line-height: 1.4; }
         .msg-me { justify-content: flex-end; }
         .msg-me .msg-content { align-items: flex-end; }
         .msg-me .msg-bubble { background-color: #8b5cf6; color: white; border-bottom-right-radius: 2px; }
         .msg-them { justify-content: flex-start; }
         .msg-them .msg-content { align-items: flex-start; }
-        .msg-them .msg-bubble { background-color: white; color: #1f2937; border-bottom-left-radius: 2px; }
-        .dark .msg-them .msg-bubble { background-color: #374151; color: white; }
-
-        .msg-status { font-size: 10px; margin-left: 4px; display: inline-block; opacity: 0.8; }
-        .status-pending { color: #9ca3af; }
-        .status-sent { color: #a5f3fc; }
+        .msg-them .msg-bubble { background-color: #374151; color: white; border-bottom-left-radius: 2px; }
 
         .video-container { aspect-ratio: 16/9; background: black; width: 100%; border-radius: 8px; overflow: hidden; position: relative; }
         .video-container video { width: 100%; height: 100%; object-fit: contain; }
@@ -113,11 +60,10 @@
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #8b5cf6; margin-top: -6px; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #4b5563; border-radius: 2px; }
 
-        #toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
-        .toast { background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 0.9rem; opacity: 0; transition: opacity 0.3s; text-align: center; backdrop-filter: blur(4px); }
+        #toast-container { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 0.9rem; opacity: 0; transition: opacity 0.3s; text-align: center; backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1); }
         .toast.show { opacity: 1; }
         
-        .overlay-top { z-index: 70 !important; }
         .animate-float { animation: float 6s ease-in-out infinite; }
         @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
     </style>
@@ -125,30 +71,30 @@
     <script>
         tailwind.config = {
             darkMode: 'class',
-            theme: { extend: { colors: { cozy: { 50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95' } } } }
+            theme: { extend: { colors: { cozy: { 50: '#f5f3ff', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 900: '#4c1d95' } } } }
         }
     </script>
 </head>
-<body class="bg-cozy-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300 selection:bg-cozy-300 overflow-hidden fixed inset-0">
+<body class="bg-gray-900 text-gray-100 selection:bg-cozy-500 selection:text-white overflow-hidden fixed inset-0">
 
     <canvas id="world-canvas"></canvas>
     <div id="toast-container"></div>
 
     <!-- Setup View -->
-    <div id="view-setup" class="ui-layer items-center justify-center bg-gradient-to-br from-cozy-100 to-purple-200 dark:from-gray-800 dark:to-gray-900 p-4">
+    <div id="view-setup" class="ui-layer items-center justify-center bg-gradient-to-br from-gray-900 to-black p-4">
         <div class="glass p-6 rounded-2xl shadow-xl max-w-md w-full flex flex-col items-center space-y-6 z-20">
-            <h1 class="text-3xl font-bold text-cozy-600 dark:text-cozy-400 tracking-tight">CozyVerse</h1>
-            <div id="setup-preview-container" class="w-40 h-40 bg-gradient-to-b from-blue-200 to-blue-100 dark:from-gray-700 dark:to-gray-800 rounded-full shadow-inner overflow-hidden relative border-4 border-white/20 flex items-center justify-center">
+            <h1 class="text-3xl font-bold text-cozy-500 tracking-tight">CozyVerse</h1>
+            <div id="setup-preview-container" class="w-40 h-40 bg-gray-800 rounded-full shadow-inner overflow-hidden relative border-4 border-white/10 flex items-center justify-center">
                 <canvas id="preview-canvas" class="w-full h-full"></canvas>
             </div>
             <div class="w-full space-y-4">
-                <input type="text" id="setup-name" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border border-transparent focus:border-cozy-500 outline-none transition text-center font-bold" placeholder="Enter Display Name">
-                <div class="space-y-2 bg-black/5 dark:bg-white/5 p-3 rounded-lg">
-                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Skin</span><input type="color" id="setup-color-base" value="#ffdbac" onchange="app.updateLook('skin', this.value)" class="w-8 h-8 rounded border-none"></div>
-                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Outfit</span><input type="color" id="setup-color-outfit" value="#8b5cf6" onchange="app.updateLook('outfit', this.value)" class="w-8 h-8 rounded border-none"></div>
-                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Style</span><div class="flex items-center gap-1"><button onclick="app.changeType(-1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-type" class="text-xs w-16 text-center font-mono">Human</span><button onclick="app.changeType(1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-right"></i></button></div></div>
-                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Hat</span><div class="flex items-center gap-1"><button onclick="app.changeHat(-1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-hat" class="text-xs w-16 text-center font-mono">None</span><button onclick="app.changeHat(1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-right"></i></button></div></div>
-                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Back</span><div class="flex items-center gap-1"><button onclick="app.changeBack(-1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-back" class="text-xs w-16 text-center font-mono">None</span><button onclick="app.changeBack(1)" class="p-1 bg-white/20 rounded hover:bg-white/40"><i class="ph ph-caret-right"></i></button></div></div>
+                <input type="text" id="setup-name" class="w-full p-3 rounded-lg bg-gray-800 border border-gray-600 focus:border-cozy-500 outline-none transition text-center font-bold text-white placeholder-gray-500 z-50 relative" placeholder="Enter Display Name">
+                <div class="space-y-2 bg-white/5 p-3 rounded-lg">
+                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Skin</span><input type="color" id="setup-color-base" value="#ffdbac" onchange="app.updateLook('skin', this.value)" class="w-8 h-8 rounded border-none bg-transparent cursor-pointer"></div>
+                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Outfit</span><input type="color" id="setup-color-outfit" value="#8b5cf6" onchange="app.updateLook('outfit', this.value)" class="w-8 h-8 rounded border-none bg-transparent cursor-pointer"></div>
+                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Style</span><div class="flex items-center gap-1"><button onclick="app.changeType(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-type" class="text-xs w-16 text-center font-mono">Human</span><button onclick="app.changeType(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
+                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Hat</span><div class="flex items-center gap-1"><button onclick="app.changeHat(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-hat" class="text-xs w-16 text-center font-mono">None</span><button onclick="app.changeHat(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
+                    <div class="flex justify-between items-center"><span class="text-xs font-bold opacity-70">Back</span><div class="flex items-center gap-1"><button onclick="app.changeBack(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="setup-lbl-back" class="text-xs w-16 text-center font-mono">None</span><button onclick="app.changeBack(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
                 </div>
             </div>
             <button onclick="app.finishSetup()" class="w-full py-3 bg-cozy-600 hover:bg-cozy-700 text-white font-bold rounded-xl shadow-lg transform transition active:scale-95">Enter Universe</button>
@@ -156,22 +102,17 @@
     </div>
 
     <!-- Home Screen View -->
-    <div id="view-home" class="ui-layer hidden flex flex-col bg-gray-100 dark:bg-gray-900">
-        <!-- Home Header -->
-        <div class="p-6 flex justify-between items-center bg-white dark:bg-gray-800 shadow-sm">
-            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cozy-500 to-purple-500">CozyVerse</h1>
-            <button onclick="app.toggleSettingsModal()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"><i class="ph ph-gear text-xl"></i></button>
+    <div id="view-home" class="ui-layer hidden flex flex-col bg-gray-900">
+        <div class="p-6 flex justify-between items-center bg-gray-800 shadow-sm border-b border-gray-700">
+            <h1 class="text-2xl font-bold text-cozy-500">CozyVerse</h1>
+            <button onclick="app.toggleSettingsModal()" class="p-2 rounded-full hover:bg-gray-700"><i class="ph ph-gear text-xl"></i></button>
         </div>
 
-        <!-- Home Content -->
         <div class="flex-1 overflow-y-auto p-6 space-y-6">
-            <!-- ID Card -->
-            <div class="glass bg-gradient-to-br from-cozy-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg animate-float relative overflow-hidden">
+            <div class="glass bg-gradient-to-br from-cozy-600 to-purple-800 rounded-2xl p-6 text-white shadow-lg animate-float relative overflow-hidden">
                 <div class="absolute top-0 right-0 opacity-10 transform translate-x-8 -translate-y-8"><i class="ph ph-planet text-[120px]"></i></div>
                 <div class="flex items-center gap-4 relative z-10">
-                    <div id="home-avatar-preview" class="w-20 h-20 bg-white/20 rounded-full border-2 border-white/30 overflow-hidden flex items-center justify-center">
-                        <!-- Canvas moves here -->
-                    </div>
+                    <div id="home-avatar-preview" class="w-20 h-20 bg-white/10 rounded-full border-2 border-white/30 overflow-hidden flex items-center justify-center"></div>
                     <div>
                         <h2 id="home-welcome-name" class="text-2xl font-bold">Welcome!</h2>
                         <p class="text-sm opacity-80">Ready to explore?</p>
@@ -186,22 +127,20 @@
                 </div>
             </div>
 
-            <!-- Stats Grid -->
             <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col items-center justify-center gap-1">
+                <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col items-center justify-center gap-1 border border-gray-700">
                     <span id="stat-contacts" class="text-2xl font-bold text-cozy-500">0</span>
                     <span class="text-xs opacity-60 uppercase font-bold">Contacts</span>
                 </div>
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col items-center justify-center gap-1">
+                <div class="bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col items-center justify-center gap-1 border border-gray-700">
                     <span id="stat-groups" class="text-2xl font-bold text-purple-500">0</span>
                     <span class="text-xs opacity-60 uppercase font-bold">Groups</span>
                 </div>
             </div>
 
-            <!-- Main Action -->
-            <button onclick="app.switchView('messenger')" class="w-full py-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-between px-6 hover:bg-gray-50 dark:hover:bg-gray-700 transition group">
+            <button onclick="app.switchView('messenger')" class="w-full py-4 bg-gray-800 border border-gray-700 rounded-2xl shadow-sm flex items-center justify-between px-6 hover:bg-gray-700 transition group">
                 <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-full bg-cozy-100 dark:bg-cozy-900/50 flex items-center justify-center text-cozy-500"><i class="ph ph-chat-circle-text text-2xl"></i></div>
+                    <div class="w-12 h-12 rounded-full bg-cozy-900/50 flex items-center justify-center text-cozy-500"><i class="ph ph-chat-circle-text text-2xl"></i></div>
                     <div class="text-left">
                         <h3 class="font-bold text-lg">Messenger & Worlds</h3>
                         <p class="text-xs opacity-60">Chat and hang out with friends</p>
@@ -213,48 +152,50 @@
     </div>
 
     <!-- Messenger View -->
-    <div id="view-messenger" class="ui-layer hidden flex-row bg-white dark:bg-gray-900">
-        <div class="w-full md:w-72 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full bg-cozy-50 dark:bg-gray-800 flex-shrink-0">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+    <div id="view-messenger" class="ui-layer hidden flex-row bg-gray-900">
+        <div class="w-full md:w-80 border-r border-gray-700 flex flex-col h-full bg-gray-800 flex-shrink-0">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
                 <div class="flex items-center space-x-2 cursor-pointer hover:opacity-70 transition" onclick="app.goHome()">
                     <div class="w-8 h-8 rounded-lg bg-cozy-500 flex items-center justify-center text-white"><i class="ph ph-house-simple"></i></div>
                     <span class="font-bold text-sm">Home</span>
                 </div>
-                <button onclick="app.toggleSettingsModal()" class="p-2 rounded-full hover:bg-black/10 transition"><i class="ph ph-gear text-xl"></i></button>
+                <button onclick="app.toggleSettingsModal()" class="p-2 rounded-full hover:bg-white/10 transition"><i class="ph ph-gear text-xl"></i></button>
             </div>
             
             <div class="flex-1 overflow-y-auto p-2">
-                <div class="flex flex-col gap-2 px-2 mb-4">
+                <!-- Groups Section -->
+                <div class="flex flex-col gap-2 px-2 mb-6">
                     <div class="flex justify-between items-center">
                         <span class="text-xs font-bold uppercase opacity-50 tracking-wider">Groups</span>
-                        <button onclick="app.showCreateGroupModal()" class="text-cozy-500 hover:text-cozy-600 p-1" title="Create Group"><i class="ph ph-plus-circle text-xl"></i></button>
+                        <button onclick="app.showCreateGroupModal()" class="text-cozy-500 hover:text-cozy-400 p-1" title="Create Group"><i class="ph ph-plus-circle text-xl"></i></button>
                     </div>
                     <div class="flex space-x-2">
-                        <input type="text" id="join-group-input" placeholder="Paste Host ID..." class="flex-1 p-1.5 text-xs rounded border dark:bg-gray-900 dark:border-gray-700 focus:border-cozy-500 outline-none">
-                        <button onclick="app.joinGroupById()" class="p-1.5 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300"><i class="ph ph-arrow-right"></i></button>
+                        <input type="text" id="join-group-input" placeholder="Paste Host ID..." class="flex-1 p-2 text-xs rounded border bg-gray-900 border-gray-700 focus:border-cozy-500 outline-none text-white">
+                        <button onclick="app.joinGroupById()" class="p-2 bg-gray-700 rounded hover:bg-gray-600"><i class="ph ph-arrow-right"></i></button>
                     </div>
-                    <div id="groups-list" class="space-y-1"></div>
+                    <div id="groups-list" class="space-y-1 mt-2"></div>
                 </div>
 
-                <div class="flex justify-between items-center px-2 mb-1">
+                <!-- Contacts Section -->
+                <div class="flex justify-between items-center px-2 mb-2">
                     <span class="text-xs font-bold uppercase opacity-50 tracking-wider">Direct Messages</span>
                 </div>
                 <div class="flex space-x-2 mb-2 px-2">
-                    <input type="text" id="add-peer-input" placeholder="Enter Peer ID..." class="flex-1 p-1.5 text-xs rounded border dark:bg-gray-900 dark:border-gray-700 focus:border-cozy-500 outline-none">
-                    <button onclick="app.addContact()" class="p-1.5 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300"><i class="ph ph-plus"></i></button>
+                    <input type="text" id="add-peer-input" placeholder="Enter Peer ID..." class="flex-1 p-2 text-xs rounded border bg-gray-900 border-gray-700 focus:border-cozy-500 outline-none text-white">
+                    <button onclick="app.addContact()" class="p-2 bg-gray-700 rounded hover:bg-gray-600"><i class="ph ph-plus"></i></button>
                 </div>
                 <div id="contacts-list" class="space-y-1 px-2"></div>
             </div>
         </div>
 
-        <div id="chat-panel" class="hidden md:flex flex-col relative bg-white dark:bg-gray-900 z-20">
-            <!-- Responsive Header -->
-            <div id="chat-header" class="p-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-y-2 justify-between items-center bg-white/90 dark:bg-gray-900/90 backdrop-blur">
+        <!-- Chat Panel -->
+        <div id="chat-panel" class="hidden md:flex flex-col relative bg-gray-900 z-20">
+            <div id="chat-header" class="p-3 border-b border-gray-700 flex flex-wrap gap-y-2 justify-between items-center bg-gray-900/90 backdrop-blur z-30">
                 <div class="flex items-center gap-2 mr-2">
                     <button class="md:hidden p-2" onclick="app.backToContacts()"><i class="ph ph-arrow-left"></i></button>
                     <div class="flex flex-col">
                         <div class="flex items-center gap-2">
-                            <h3 id="current-chat-name" class="font-bold text-lg leading-tight truncate max-w-[150px] sm:max-w-xs">Select Chat</h3>
+                            <h3 id="current-chat-name" class="font-bold text-lg leading-tight truncate max-w-[150px] sm:max-w-xs text-white">Select Chat</h3>
                             <div id="conn-indicator" class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Offline"></div>
                             <span id="live-badge" class="hidden px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold animate-pulse">LIVE</span>
                         </div>
@@ -266,17 +207,17 @@
                     <button id="btn-watch-stream" onclick="app.openStreamModal()" class="hidden px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-lg border border-purple-400">
                         <i class="ph ph-television"></i> <span class="hidden sm:inline">Watch</span>
                     </button>
-                    <button onclick="app.showInviteModal()" class="p-2 text-xs bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200" title="Invite Contact"><i class="ph ph-user-plus"></i></button>
-                    <button onclick="app.copyGroupInvite()" class="p-2 text-xs bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200" title="Copy Invite Link"><i class="ph ph-share-network"></i></button>
+                    <button onclick="app.showInviteModal()" class="p-2 text-xs bg-gray-800 rounded hover:bg-gray-700 border border-gray-600" title="Invite Contact"><i class="ph ph-user-plus"></i></button>
+                    <button onclick="app.copyGroupInvite()" class="p-2 text-xs bg-gray-800 rounded hover:bg-gray-700 border border-gray-600" title="Copy Invite Link"><i class="ph ph-share-network"></i></button>
                     
                     <div id="launch-controls" class="flex gap-2 items-center">
-                        <select id="world-select" class="text-xs p-2 rounded border dark:bg-gray-800 dark:border-gray-600 outline-none max-w-[100px]">
+                        <select id="world-select" class="text-xs p-2 rounded border bg-gray-800 border-gray-600 outline-none max-w-[100px] text-white">
                             <option value="cabin">Cozy Cabin</option>
                             <option value="meadow">Sunny Meadow</option>
                             <option value="neon">Neon Night</option>
                             <option value="clouds">Cloud Haven</option>
                         </select>
-                        <button onclick="app.launchWorld()" class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-full text-sm shadow font-semibold flex items-center gap-1 whitespace-nowrap"><i class="ph ph-globe"></i> Launch</button>
+                        <button onclick="app.launchWorld()" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-full text-sm shadow font-semibold flex items-center gap-1 whitespace-nowrap"><i class="ph ph-globe"></i> Launch</button>
                     </div>
                 </div>
                 <div id="join-world-btn-container" class="hidden ml-auto">
@@ -286,133 +227,122 @@
                 </div>
             </div>
 
-            <div id="messages-container" class="bg-pattern px-4">
-                <div class="text-center text-gray-400 mt-10 opacity-50 text-sm">Select a chat to start messaging.</div>
+            <div id="messages-container" class="px-4 bg-gray-900">
+                <div class="text-center text-gray-500 mt-10 opacity-50 text-sm">Select a chat to start messaging.</div>
             </div>
-            <div id="input-area" class="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex gap-2">
-                <input type="text" id="msg-input" class="flex-1 p-3 rounded-full bg-gray-100 dark:bg-gray-800 border-none focus:ring-2 ring-cozy-500 outline-none" placeholder="Type a message...">
+            
+            <div id="input-area" class="p-3 border-t border-gray-700 bg-gray-900 flex gap-2">
+                <input type="text" id="msg-input" class="flex-1 p-3 rounded-full bg-gray-800 border border-gray-700 text-white focus:ring-2 ring-cozy-500 outline-none" placeholder="Type a message...">
                 <button onclick="app.sendMessage()" class="p-3 rounded-full bg-cozy-600 text-white hover:scale-105 transition"><i class="ph ph-paper-plane-right-fill"></i></button>
             </div>
         </div>
     </div>
 
-    <!-- Modals -->
-    <div id="modal-create-group" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full">
+    <!-- Modals (Simplified for one-file readability) -->
+    <div id="modal-create-group" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full border border-gray-700">
             <h3 class="text-xl font-bold mb-4">Create Group</h3>
-            <input type="text" id="new-group-name" placeholder="Group Name" class="w-full p-2 mb-4 rounded border dark:bg-gray-700 dark:border-gray-600">
+            <input type="text" id="new-group-name" placeholder="Group Name" class="w-full p-2 mb-4 rounded border bg-gray-900 border-gray-600 text-white">
             <div class="flex gap-2">
-                <button onclick="document.getElementById('modal-create-group').classList.add('hidden')" class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 rounded">Cancel</button>
-                <button onclick="app.createGroup()" class="flex-1 py-2 bg-cozy-500 text-white rounded font-bold">Create</button>
+                <button onclick="document.getElementById('modal-create-group').classList.add('hidden')" class="flex-1 py-2 bg-gray-700 rounded">Cancel</button>
+                <button onclick="app.createGroup()" class="flex-1 py-2 bg-cozy-600 text-white rounded font-bold">Create</button>
             </div>
         </div>
     </div>
 
-    <div id="modal-invite-contact" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full">
+    <div id="modal-invite-contact" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full border border-gray-700">
             <h3 class="text-xl font-bold mb-4">Invite to Group</h3>
             <div id="invite-list" class="space-y-2 max-h-60 overflow-y-auto mb-4"></div>
-            <button onclick="document.getElementById('modal-invite-contact').classList.add('hidden')" class="w-full py-2 bg-gray-200 dark:bg-gray-700 rounded">Close</button>
+            <button onclick="document.getElementById('modal-invite-contact').classList.add('hidden')" class="w-full py-2 bg-gray-700 rounded">Close</button>
         </div>
     </div>
 
-    <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full max-h-[90vh] overflow-y-auto">
+    <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full max-h-[90vh] overflow-y-auto border border-gray-700">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xl font-bold">Settings</h3>
                 <button onclick="app.toggleSettingsModal()"><i class="ph ph-x text-lg"></i></button>
             </div>
-            <div class="mb-6 bg-gray-100 dark:bg-gray-700/50 p-4 rounded-lg">
+            <div class="mb-6 bg-gray-700/50 p-4 rounded-lg">
                 <h4 class="text-sm font-bold uppercase opacity-70 mb-3">Look</h4>
                 <div class="flex gap-4">
-                    <div id="settings-preview-container" class="w-24 h-24 bg-gradient-to-b from-blue-200 to-blue-100 dark:from-gray-700 dark:to-gray-800 rounded-full shadow-inner border-2 border-white/20 flex-shrink-0 flex items-center justify-center"></div>
+                    <div id="settings-preview-container" class="w-24 h-24 bg-gray-900 rounded-full shadow-inner border border-white/10 flex-shrink-0 flex items-center justify-center overflow-hidden relative"></div>
                     <div class="flex-1 space-y-2">
-                        <div class="flex justify-between items-center"><span class="text-xs">Skin</span><input type="color" id="color-base" onchange="app.updateLook('skin', this.value)" class="w-8 h-8 rounded border-none"></div>
-                        <div class="flex justify-between items-center"><span class="text-xs">Outfit</span><input type="color" id="color-outfit" onchange="app.updateLook('outfit', this.value)" class="w-8 h-8 rounded border-none"></div>
-                        <div class="flex justify-between items-center"><span class="text-xs">Style</span><div class="flex items-center gap-1"><button onclick="app.changeType(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-type" class="text-[10px] w-14 text-center truncate">Human</span><button onclick="app.changeType(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
-                        <div class="flex justify-between items-center"><span class="text-xs">Hat</span><div class="flex items-center gap-1"><button onclick="app.changeHat(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-hat" class="text-[10px] w-14 text-center truncate">None</span><button onclick="app.changeHat(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
-                        <div class="flex justify-between items-center"><span class="text-xs">Back</span><div class="flex items-center gap-1"><button onclick="app.changeBack(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-back" class="text-[10px] w-14 text-center truncate">None</span><button onclick="app.changeBack(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
+                        <div class="flex justify-between items-center"><span class="text-xs">Skin</span><input type="color" id="color-base" onchange="app.updateLook('skin', this.value)" class="w-6 h-6 rounded border-none bg-transparent cursor-pointer"></div>
+                        <div class="flex justify-between items-center"><span class="text-xs">Outfit</span><input type="color" id="color-outfit" onchange="app.updateLook('outfit', this.value)" class="w-6 h-6 rounded border-none bg-transparent cursor-pointer"></div>
+                        <div class="flex justify-between items-center"><span class="text-xs">Style</span><div class="flex items-center gap-1"><button onclick="app.changeType(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-type" class="text-xs w-14 text-center truncate">Human</span><button onclick="app.changeType(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
+                        <div class="flex justify-between items-center"><span class="text-xs">Hat</span><div class="flex items-center gap-1"><button onclick="app.changeHat(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-hat" class="text-xs w-14 text-center truncate">None</span><button onclick="app.changeHat(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
+                        <div class="flex justify-between items-center"><span class="text-xs">Back</span><div class="flex items-center gap-1"><button onclick="app.changeBack(-1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-left"></i></button><span id="lbl-back" class="text-xs w-14 text-center truncate">None</span><button onclick="app.changeBack(1)" class="p-1 bg-white/10 rounded hover:bg-white/20"><i class="ph ph-caret-right"></i></button></div></div>
                     </div>
                 </div>
             </div>
-            <div class="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+            
+            <div class="space-y-4 border-t border-gray-700 pt-4">
                 <div class="flex items-center justify-between"><span class="text-sm">Include Chat History</span><input type="checkbox" id="include-history-check" class="accent-cozy-500"></div>
-                <div><textarea id="import-area" class="w-full text-xs p-2 mt-1 rounded bg-gray-100 dark:bg-gray-900 h-24 font-mono" placeholder="Data..."></textarea></div>
-                <div class="flex gap-2"><button onclick="app.exportData()" class="flex-1 py-2 bg-cozy-100 text-cozy-700 rounded text-sm font-bold">Copy</button><button onclick="app.importData()" class="flex-1 py-2 bg-cozy-500 text-white rounded text-sm font-bold">Load</button></div>
-                <button onclick="app.resetProfile()" class="w-full py-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded font-bold text-sm transition">Reset Profile</button>
+                <div><textarea id="import-area" class="w-full text-xs p-2 mt-1 rounded bg-gray-900 border border-gray-600 h-24 font-mono text-white" placeholder="Data..."></textarea></div>
+                <div class="flex gap-2">
+                    <button onclick="app.exportData()" class="flex-1 py-2 bg-gray-700 text-white rounded text-sm font-bold hover:bg-gray-600">Copy</button>
+                    <button onclick="app.importData()" class="flex-1 py-2 bg-cozy-600 text-white rounded text-sm font-bold hover:bg-cozy-500">Load</button>
+                </div>
+                <button onclick="app.resetProfile()" class="w-full py-2 border border-red-500 text-red-500 hover:bg-red-500/20 rounded font-bold text-sm transition">Reset Profile</button>
             </div>
         </div>
     </div>
 
-    <div id="modal-join-request" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full animate-bounce-in">
+    <div id="modal-join-request" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full animate-bounce-in border border-gray-600">
             <h3 class="text-xl font-bold mb-2">Join Group?</h3>
             <p class="text-sm opacity-70 mb-4">Invite from <span id="join-host-name" class="font-bold">User</span> to group: <span id="join-group-name" class="font-bold text-cozy-500">Group</span>?</p>
-            <div class="flex gap-2"><button onclick="document.getElementById('modal-join-request').classList.add('hidden')" class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 rounded text-sm font-bold">Ignore</button><button onclick="app.acceptGroupInvite()" class="flex-1 py-2 bg-cozy-500 text-white rounded text-sm font-bold">Join</button></div>
+            <div class="flex gap-2"><button onclick="document.getElementById('modal-join-request').classList.add('hidden')" class="flex-1 py-2 bg-gray-700 rounded text-sm font-bold">Ignore</button><button onclick="app.acceptGroupInvite()" class="flex-1 py-2 bg-cozy-600 text-white rounded text-sm font-bold">Join</button></div>
         </div>
     </div>
 
-    <div id="modal-stream" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
+    <div id="modal-stream" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
         <div class="bg-gray-900 p-4 rounded-xl shadow-2xl max-w-4xl w-full flex flex-col gap-4 border border-gray-700">
             <div class="flex justify-between items-center text-white"><h3 class="font-bold">Broadcast</h3><button onclick="app.closeStreamModal()"><i class="ph ph-x text-xl"></i></button></div>
-            <div class="video-container bg-black relative"><video id="stream-video" autoplay playsinline class="w-full h-full"></video><div class="absolute bottom-4 right-4 bg-black/50 p-2 rounded flex items-center gap-2"><button onclick="app.toggleStreamMute()" id="btn-stream-mute"><i class="ph ph-speaker-high text-white"></i></button><input type="range" min="0" max="1" step="0.1" value="1" oninput="document.getElementById('stream-video').volume = this.value" class="w-24"></div></div>
+            <div class="video-container bg-black relative"><video id="stream-video" autoplay playsinline class="w-full h-full"></video><div class="absolute bottom-4 right-4 bg-black/50 p-2 rounded flex items-center gap-2"><button onclick="app.toggleStreamMute()" id="btn-stream-mute"><i class="ph ph-speaker-high text-white"></i></button></div></div>
         </div>
     </div>
 
+    <!-- 3D World Overlay -->
     <div id="world-overlay" class="hidden absolute top-0 left-0 w-full h-full z-30 pointer-events-none flex flex-col justify-between">
-        <div class="p-4 flex justify-between items-start pointer-events-auto overlay-top">
+        <div class="p-4 flex justify-between items-start pointer-events-auto">
             <div class="glass p-2 rounded-lg text-white text-xs flex flex-col gap-1 shadow-lg">
                 <div class="font-bold opacity-80 flex items-center gap-2"><span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> World Active</div>
-                <div class="flex items-center gap-2 mt-1"><i class="ph ph-speaker-high"></i><input type="range" min="0" max="1" step="0.1" value="1" oninput="app.setWorldVolume(this.value)" class="w-20"></div>
                 <button onclick="app.shareScreen()" id="btn-share-screen" class="bg-purple-600 hover:bg-purple-500 px-2 py-1.5 rounded mt-1 font-bold">Share Screen</button>
-                <button onclick="app.toggleCameraMode()" class="bg-white/20 hover:bg-white/30 px-2 py-1 rounded mt-1">Toggle Cam (C)</button>
+                <button onclick="app.toggleCameraMode()" class="bg-white/10 hover:bg-white/20 px-2 py-1 rounded mt-1">Toggle Cam (C)</button>
                 <div class="mt-2 text-[10px] opacity-70 md:block hidden">Click screen to lock mouse</div>
             </div>
             <button onclick="app.leaveWorld()" class="glass p-3 rounded-full text-red-400 hover:text-red-200 hover:bg-red-500/20 transition shadow-lg"><i class="ph ph-x-circle text-2xl"></i></button>
         </div>
         <div class="p-4 w-full max-w-md pointer-events-auto mb-20 md:mb-0">
-            <div id="world-chat-log" class="h-40 overflow-y-auto mask-gradient mb-2 text-white text-shadow shadow-black/50 text-sm space-y-1 font-medium"></div>
-            <input type="text" id="world-input" class="glass w-full p-3 rounded-full text-white placeholder-white/50 outline-none focus:bg-black/40 transition backdrop-blur-md" placeholder="Say something...">
+            <div id="world-chat-log" class="h-40 overflow-y-auto mask-gradient mb-2 text-white text-shadow shadow-black/50 text-sm space-y-1 font-medium px-2"></div>
+            <input type="text" id="world-input" class="glass w-full p-3 rounded-full text-white placeholder-white/50 outline-none focus:bg-black/60 transition" placeholder="Say something...">
         </div>
         
         <div id="mobile-ui-layer" class="absolute inset-0 z-50 md:hidden pointer-events-none">
             <div id="joystick-zone" class="pointer-events-auto"><div id="joystick-knob"></div></div>
             <div id="touch-look-zone" class="pointer-events-auto"></div>
-            <button id="jump-btn" class="pointer-events-auto absolute bottom-8 right-8 w-16 h-16 rounded-full glass active:bg-white/30 flex items-center justify-center shadow-lg"><i class="ph ph-arrow-up text-white text-2xl"></i></button>
         </div>
     </div>
 
     <script>
-        const CONFIG = { 
-            peerConfig: { 
-                debug: 1,
-                secure: true, 
-                config: { iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' } ] }
-            }, 
-            HOST_ID_PREFIX: 'GROUP_' 
-        };
-
-        function showToast(msg) {
+        const CONFIG = { peerConfig: { debug: 1, secure: true, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } }, HOST_ID_PREFIX: 'GROUP_' };
+        const showToast = (msg) => {
             const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = 'toast'; toast.innerText = msg;
+            const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
             container.appendChild(toast);
             requestAnimationFrame(() => toast.classList.add('show'));
             setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
-        }
+        };
+        const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+        window.addEventListener('resize', setAppHeight); setAppHeight();
 
-        // --- Mobile Height Fix ---
-        function setAppHeight() {
-            document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
-        }
-        window.addEventListener('resize', setAppHeight);
-        setAppHeight();
-
-        // --- Avatar Engine ---
+        // --- AVATAR ENGINE (RESTORED ORIGINAL LOGIC) ---
         class Avatar {
             static create(data) {
                 const group = new THREE.Group();
-                // FIX: Ensure default colors if missing to prevent crashes
                 const skinCol = new THREE.Color(data.skinColor || '#ffdbac');
                 const outfitCol = new THREE.Color(data.outfitColor || '#8b5cf6');
                 
@@ -457,7 +387,7 @@
 
                 group.userData.limbs = { armL: armL_P, armR: armR_P, legL: legL_P, legR: legR_P };
 
-                // Hat Logic
+                // Hat Logic (RESTORED)
                 const hatY = 1.3;
                 if(data.hat===1){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.5,8),darkMat); cone.position.y=hatY+0.2; const tip=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.3,8),darkMat); tip.position.set(0.1,hatY+0.5,0); tip.rotation.z=-0.5; const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,0.05,8),darkMat); brim.position.y=hatY-0.05; group.add(cone,tip,brim); }
                 else if(data.hat===2){ const h=new THREE.Mesh(new THREE.DodecahedronGeometry(0.35,0),new THREE.MeshLambertMaterial({color:0x999999,flatShading:true})); h.position.y=1.05; group.remove(head); group.add(h); const v=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.15),new THREE.MeshLambertMaterial({color:0x555})); v.position.set(0,1.05,0.25); group.add(v); const p=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.3,0.2),outfitMat); p.position.set(0,1.45,0); group.add(p); }
@@ -469,7 +399,7 @@
                 else if(data.hat===8){ const b=new THREE.Mesh(new THREE.TorusGeometry(0.4,0.05,4,8,Math.PI),darkMat); b.position.y=1.05; const c1=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.2),outfitMat); c1.position.set(-0.4,1.05,0); const c2=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.2),outfitMat); c2.position.set(0.4,1.05,0); group.add(b,c1,c2); }
                 else if(data.hat===9){ const e1=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.2,4),skinMat); e1.position.set(-0.25,1.3,0); e1.rotation.z=0.3; const e2=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.2,4),skinMat); e2.position.set(0.25,1.3,0); e2.rotation.z=-0.3; group.add(e1,e2); }
 
-                // Back Accessory Logic
+                // Back Accessory Logic (RESTORED)
                 const backY = 0.6;
                 if(data.back===1) { // Cape
                     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.05), new THREE.MeshLambertMaterial({color: 0xaa0000}));
@@ -484,8 +414,6 @@
                     const j2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4), silverMat); j2.position.set(0.15, backY, -0.25);
                     group.add(j1, j2);
                 }
-
-                group.userData.velocity = new THREE.Vector3();
                 return group;
             }
         }
@@ -494,25 +422,22 @@
             constructor() {
                 this.scene = new THREE.Scene();
                 this.camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
-                this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('world-canvas'), antialias: false });
+                this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('world-canvas'), antialias: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.shadowMap.enabled = true;
 
                 this.previewRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('preview-canvas'), alpha: true, antialias: true });
                 this.previewRenderer.setSize(160, 160);
                 this.previewScene = new THREE.Scene();
                 this.previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
                 this.previewCamera.position.set(0, 0.9, 3.0); this.previewCamera.lookAt(0, 0.8, 0);
-                this.previewScene.add(new THREE.DirectionalLight(0xffffff, 1.0));
-                this.previewScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                const pl = new THREE.DirectionalLight(0xffffff, 1.2); pl.position.set(1,2,3); this.previewScene.add(pl, new THREE.AmbientLight(0xffffff, 0.5));
 
                 this.avatars = {}; 
                 this.myAvatar = null;
                 this.isWorldActive = false;
                 this.camMode = 0;
-                this.keys = { w: false, a: false, s: false, d: false };
-                this.mobileInput = { x: 0, y: 0 };
-                this.mouseLocked = false;
+                this.keys = {}; this.mobileInput = {x:0, y:0};
                 this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
                 this.clock = new THREE.Clock();
 
@@ -520,14 +445,20 @@
                 this.setupInput();
                 this.loop();
             }
+
             initLights() {
-                const amb = new THREE.AmbientLight(0xffffff, 0.7); this.scene.add(amb);
-                const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(10, 20, 10); dir.castShadow = true; dir.shadow.mapSize.width=1024; this.scene.add(dir);
+                const amb = new THREE.AmbientLight(0xffffff, 0.6); this.scene.add(amb);
+                const dir = new THREE.DirectionalLight(0xffffff, 1.0); dir.position.set(20, 30, 10); 
+                dir.castShadow = true; dir.shadow.mapSize.width = 1024;
+                this.scene.add(dir);
             }
+
             updatePreview(d) {
+                // Remove old avatar mesh
                 this.previewScene.children = this.previewScene.children.filter(c => c.isLight);
                 this.previewScene.add(Avatar.create(d));
             }
+
             createWorld(t) {
                 this.scene.children = this.scene.children.filter(c => c.isLight || (c.userData && c.userData.isAvatar));
                 let gc = 0x5D9C59, sc = 0x87CEEB;
@@ -542,12 +473,14 @@
                 if(t==='neon') this.genNeon();
                 this.createScreen(0, 6, -12, 1.0);
             }
+
             createScreen(x,y,z,s) {
                 this.screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(16*s, 9*s), new THREE.MeshBasicMaterial({ color: 0x000000 }));
                 this.screenMesh.position.set(x,y,z); this.scene.add(this.screenMesh);
                 const f = new THREE.Mesh(new THREE.BoxGeometry(17*s, 10*s, 0.5), new THREE.MeshLambertMaterial({color:0x222222}));
                 f.position.set(x,y,z-0.3); this.scene.add(f);
             }
+
             genCabin() {
                 const floor = new THREE.Mesh(new THREE.BoxGeometry(12, 0.5, 12), new THREE.MeshLambertMaterial({color: 0x5d4037, flatShading:true}));
                 this.scene.add(floor);
@@ -559,6 +492,7 @@
                 const p = new THREE.PointLight(0xffaa55, 1.5, 20); p.position.set(0, 6, 0); this.scene.add(p);
                 this.createScreen(0, 3.5, -5.7, 0.6);
             }
+
             genTrees(n) {
                 const gm = new THREE.MeshLambertMaterial({color:0x2d4c1e, flatShading:true});
                 const bm = new THREE.MeshLambertMaterial({color:0x4a3c31, flatShading:true});
@@ -571,187 +505,171 @@
                     t.add(l1,l2); this.scene.add(t);
                 }
             }
-            genNeon() { const g = new THREE.GridHelper(100, 50, 0xff00ff, 0x00ffff); g.position.y=0.1; this.scene.add(g); }
-            
-            spawnMe(u) { if(this.myAvatar) this.scene.remove(this.myAvatar); this.myAvatar = Avatar.create(u); this.scene.add(this.myAvatar); }
-            updatePeer(id, d) {
-                // FIX: Better syncing for avatars that might exist but lack profile data
-                if(!this.avatars[id]) { 
-                    let profile = window.app.state.activeWorldUsers[id] || (window.app.conns[id] ? window.app.conns[id].user : null);
-                    if (!profile) profile = { ...d, skinColor: d.skinColor || '#cccccc', outfitColor: d.outfitColor || '#ffffff', type: d.type||0, hat: d.hat||0, back: d.back||0 };
-                    
-                    const m = Avatar.create(profile); 
-                    this.scene.add(m); 
-                    this.avatars[id] = m; 
-                } else if (d.skinColor && !this.avatars[id].userData.hasProfile) {
-                    // Re-create if we receive full profile and current one is a dummy
-                    this.scene.remove(this.avatars[id]);
-                    const m = Avatar.create(d);
-                    m.userData.hasProfile = true;
-                    this.scene.add(m);
-                    this.avatars[id] = m;
-                }
 
+            genNeon() { const g = new THREE.GridHelper(100, 50, 0xff00ff, 0x00ffff); g.position.y=0.1; this.scene.add(g); }
+
+            spawnMe(user) {
+                if(this.myAvatar) this.scene.remove(this.myAvatar);
+                this.myAvatar = Avatar.create(user);
+                this.myAvatar.userData.isAvatar = true;
+                this.scene.add(this.myAvatar);
+            }
+
+            updatePeer(id, data) {
+                // If profile missing, check cache or use default
+                if (!this.avatars[id]) {
+                    let profile = window.app.peerProfiles[id] || { skinColor: '#888888', outfitColor: '#aaaaaa', type: 1, hat: 0 };
+                    const mesh = Avatar.create(profile);
+                    mesh.userData.isAvatar = true;
+                    this.scene.add(mesh);
+                    this.avatars[id] = mesh;
+                }
                 const av = this.avatars[id];
-                // If d has position, update target. If not (profile update), keep current pos
-                if(d.x !== undefined) {
-                    av.userData.targetPos = new THREE.Vector3(d.x, d.y, d.z); av.userData.targetRot = d.ry;
+                if (data.x !== undefined) {
+                    av.userData.targetPos = new THREE.Vector3(data.x, data.y, data.z);
+                    av.userData.targetRot = data.ry;
+                }
+                // Rebuild if look changed
+                if (data.skinColor) {
+                    this.scene.remove(av);
+                    const newMesh = Avatar.create(data);
+                    newMesh.userData = av.userData; // Keep pos data
+                    newMesh.userData.isAvatar = true;
+                    newMesh.position.copy(av.position);
+                    this.scene.add(newMesh);
+                    this.avatars[id] = newMesh;
                 }
             }
-            removePeerAvatar(id) { if(this.avatars[id]) { this.scene.remove(this.avatars[id]); delete this.avatars[id]; } }
-            
-            applyVideoTexture(stream) {
-                if(!this.screenMesh) return;
-                const video = document.createElement('video'); 
-                video.srcObject = stream; 
-                video.muted = false; 
-                video.play();
-                this.screenMesh.material = new THREE.MeshBasicMaterial({ map: new THREE.VideoTexture(video) });
+
+            removePeerAvatar(id) {
+                if (this.avatars[id]) { this.scene.remove(this.avatars[id]); delete this.avatars[id]; }
             }
-            setVolume(val) { const v = document.getElementById('stream-video'); if(v) v.volume = val; }
+
+            applyVideoTexture(stream) {
+                if(this.screenMesh) {
+                    const video = document.createElement('video');
+                    video.srcObject = stream; video.muted = true; video.play();
+                    this.screenMesh.material = new THREE.MeshBasicMaterial({ map: new THREE.VideoTexture(video) });
+                }
+            }
+
             setupInput() {
-                window.addEventListener('resize', () => { this.camera.aspect = window.innerWidth/window.innerHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(window.innerWidth, window.innerHeight); });
-                document.addEventListener('keydown', (e) => { if(document.activeElement.tagName==='INPUT' || !e.key)return; this.keys[e.key.toLowerCase()] = true; if(e.key.toLowerCase()==='c')this.toggleCamera(); });
-                document.addEventListener('keyup', (e) => { if(e.key) this.keys[e.key.toLowerCase()] = false; });
-                
+                window.addEventListener('resize', () => { 
+                    this.camera.aspect = window.innerWidth/window.innerHeight; this.camera.updateProjectionMatrix(); 
+                    this.renderer.setSize(window.innerWidth, window.innerHeight); 
+                });
+                document.addEventListener('keydown', e => { if(document.activeElement === document.body) this.keys[e.key.toLowerCase()] = true; if(e.key.toLowerCase()==='c') this.toggleCamera(); });
+                document.addEventListener('keyup', e => this.keys[e.key.toLowerCase()] = false);
+
                 const jZone = document.getElementById('joystick-zone');
                 const jKnob = document.getElementById('joystick-knob');
-                const lookZone = document.getElementById('touch-look-zone');
-                
-                // Show controls on small screens
-                if(window.matchMedia("(max-width: 768px)").matches) {
-                    jZone.style.display = 'block';
-                    lookZone.style.display = 'block';
-                }
-
-                let jId = null, jStartX = 0, jStartY = 0;
-                jZone.addEventListener('touchstart', e => {
-                    e.preventDefault(); const t = e.changedTouches[0];
-                    jId = t.identifier; jStartX = t.clientX; jStartY = t.clientY;
-                });
+                let jId = null, startX=0, startY=0;
+                jZone.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; jId = t.identifier; startX = t.clientX; startY = t.clientY; });
                 jZone.addEventListener('touchmove', e => {
-                    e.preventDefault(); const t = Array.from(e.changedTouches).find(x=>x.identifier===jId);
+                    e.preventDefault(); const t = [...e.changedTouches].find(x=>x.identifier===jId);
                     if(t) {
-                        const dx = t.clientX - jStartX; const dy = t.clientY - jStartY;
-                        const dist = Math.min(35, Math.sqrt(dx*dx+dy*dy));
+                        let dx = t.clientX - startX, dy = t.clientY - startY;
+                        const dist = Math.min(35, Math.hypot(dx, dy));
                         const angle = Math.atan2(dy, dx);
-                        const kx = Math.cos(angle) * dist; const ky = Math.sin(angle) * dist;
-                        jKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-                        this.mobileInput.x = kx / 35; this.mobileInput.y = ky / 35;
+                        dx = Math.cos(angle) * dist; dy = Math.sin(angle) * dist;
+                        jKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                        this.mobileInput.x = dx/35; this.mobileInput.y = dy/35;
                     }
                 });
-                // FIX: Listen on document for end to prevent sticky keys
-                document.addEventListener('touchend', e => { 
-                    const t = Array.from(e.changedTouches).find(x=>x.identifier===jId);
-                    if(t) { jId = null; jKnob.style.transform = `translate(-50%, -50%)`; this.mobileInput.x = 0; this.mobileInput.y = 0; }
-                });
-
-                let lId = null, lLastX = 0, lLastY = 0;
-                lookZone.addEventListener('touchstart', e => { 
-                    e.preventDefault(); 
+                jZone.addEventListener('touchend', () => { jId=null; jKnob.style.transform = `translate(-50%, -50%)`; this.mobileInput = {x:0, y:0}; });
+                
+                const lZone = document.getElementById('touch-look-zone');
+                let lLastX=0, lLastY=0;
+                lZone.addEventListener('touchstart', e=> { lLastX=e.changedTouches[0].clientX; lLastY=e.changedTouches[0].clientY; });
+                lZone.addEventListener('touchmove', e=> {
                     const t=e.changedTouches[0]; 
-                    lId=t.identifier; 
-                    lLastX=t.clientX; 
-                    lLastY=t.clientY; 
-                });
-                lookZone.addEventListener('touchmove', e => {
-                    e.preventDefault(); const t = Array.from(e.changedTouches).find(x=>x.identifier===lId);
-                    if(t) {
-                        const dx = t.clientX - lLastX; lLastX = t.clientX;
-                        const dy = t.clientY - lLastY; lLastY = t.clientY;
-
-                        if(this.camMode===1) {
-                            this.euler.y -= dx * 0.005;
-                            this.euler.x -= dy * 0.005;
-                            this.euler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.euler.x)); 
-                            this.camera.quaternion.setFromEuler(this.euler);
-                            if(this.myAvatar) this.myAvatar.rotation.y = this.euler.y;
-                        } else {
-                            if(this.myAvatar) this.myAvatar.rotation.y -= dx * 0.005;
-                        }
-                    }
-                });
-                document.addEventListener('touchend', e=>{
-                    const t = Array.from(e.changedTouches).find(x=>x.identifier===lId);
-                    if(t) lId=null;
+                    const dx = t.clientX - lLastX; const dy = t.clientY - lLastY;
+                    lLastX=t.clientX; lLastY=t.clientY;
+                    this.euler.y -= dx*0.005; this.euler.x -= dy*0.005;
+                    this.euler.x = Math.max(-1.5, Math.min(1.5, this.euler.x));
+                    if(this.camMode===1) { this.camera.quaternion.setFromEuler(this.euler); if(this.myAvatar) this.myAvatar.rotation.y = this.euler.y; }
+                    else if(this.myAvatar) this.myAvatar.rotation.y -= dx*0.005;
                 });
 
                 const c = document.getElementById('world-canvas');
                 c.addEventListener('click', () => { if(this.camMode===1) c.requestPointerLock(); });
-                document.addEventListener('pointerlockchange', () => { this.mouseLocked = document.pointerLockElement === c; });
-                document.addEventListener('mousemove', (e) => {
-                    if(this.mouseLocked && this.camMode === 1) {
-                        this.euler.setFromQuaternion(this.camera.quaternion);
-                        this.euler.y -= e.movementX * 0.002; this.euler.x -= e.movementY * 0.002;
-                        this.euler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.euler.x));
+                document.addEventListener('mousemove', e => {
+                    if(document.pointerLockElement === c && this.camMode===1) {
+                        this.euler.y -= e.movementX*0.002; this.euler.x -= e.movementY*0.002;
+                        this.euler.x = Math.max(-1.5, Math.min(1.5, this.euler.x));
                         this.camera.quaternion.setFromEuler(this.euler);
                         if(this.myAvatar) this.myAvatar.rotation.y = this.euler.y;
                     }
                 });
             }
-            toggleCamera() { 
-                this.camMode=(this.camMode+1)%2; 
-                if(this.camMode===1) { this.euler.x = 0; this.camera.quaternion.setFromEuler(this.euler); if(!window.matchMedia("(max-width: 768px)").matches) document.getElementById('world-canvas').requestPointerLock(); } 
-                else document.exitPointerLock();
+
+            toggleCamera() {
+                this.camMode = (this.camMode+1)%2;
+                if(this.camMode===1) { 
+                    this.euler.set(0, this.myAvatar ? this.myAvatar.rotation.y : 0, 0, 'YXZ');
+                    this.camera.quaternion.setFromEuler(this.euler);
+                    if(!('ontouchstart' in window)) document.getElementById('world-canvas').requestPointerLock();
+                } else document.exitPointerLock();
             }
+
             loop() {
-                requestAnimationFrame(()=>this.loop());
-                const dt = this.clock.getDelta();
-                if(this.previewScene.children.length > 2) this.previewScene.children[2].rotation.y += dt * 0.5;
-                this.previewRenderer.render(this.previewScene, this.previewCamera);
-                if(!this.isWorldActive || !this.myAvatar) return;
+                requestAnimationFrame(() => this.loop());
+                if(document.hidden) return;
                 
+                // Preview Rotation
+                if(this.previewScene.children.length > 2) this.previewScene.children[this.previewScene.children.length-1].rotation.y += 0.01;
+                this.previewRenderer.render(this.previewScene, this.previewCamera);
+
+                if(!this.isWorldActive || !this.myAvatar) return;
+
+                const dt = Math.min(this.clock.getDelta(), 0.1); 
                 const speed = 8.0 * dt;
                 let dx=0, dz=0;
-                if(this.keys['w']||this.keys['arrowup']) dz=-1;
-                if(this.keys['s']||this.keys['arrowdown']) dz=1;
-                if(this.keys['a']||this.keys['arrowleft']) dx=-1;
-                if(this.keys['d']||this.keys['arrowright']) dx=1;
-                if(this.mobileInput.x!==0) dx=this.mobileInput.x;
-                if(this.mobileInput.y!==0) dz=this.mobileInput.y;
-                
-                let vec = new THREE.Vector3(dx, 0, dz);
-                if(vec.length() > 0) {
+                if(this.keys['w'] || this.keys['arrowup']) dz = -1;
+                if(this.keys['s'] || this.keys['arrowdown']) dz = 1;
+                if(this.keys['a'] || this.keys['arrowleft']) dx = -1;
+                if(this.keys['d'] || this.keys['arrowright']) dx = 1;
+                if(this.mobileInput.x !== 0) dx = this.mobileInput.x;
+                if(this.mobileInput.y !== 0) dz = this.mobileInput.y;
+
+                const vec = new THREE.Vector3(dx, 0, dz);
+                if(vec.lengthSq() > 0) {
                     vec.normalize().multiplyScalar(speed);
                     if(this.camMode===1) vec.applyEuler(new THREE.Euler(0, this.euler.y, 0));
                     else this.myAvatar.rotation.y = Math.atan2(vec.x, vec.z);
                     this.myAvatar.position.add(vec);
-                    const s = Math.sin(this.clock.elapsedTime*10)*0.6;
-                    if(this.myAvatar.userData.limbs) {
-                        this.myAvatar.userData.limbs.armL.rotation.x = s; this.myAvatar.userData.limbs.armR.rotation.x = -s;
-                        this.myAvatar.userData.limbs.legL.rotation.x = -s; this.myAvatar.userData.limbs.legR.rotation.x = s;
-                    }
-                    // Send senderId explicitly
-                    window.app.broadcastPosition({x:this.myAvatar.position.x, y:this.myAvatar.position.y, z:this.myAvatar.position.z, ry:this.myAvatar.rotation.y, senderId:this.myId});
+                    
+                    const s = Math.sin(Date.now() * 0.015) * 0.6;
+                    const l = this.myAvatar.userData.limbs;
+                    if(l) { l.armL.rotation.x = s; l.armR.rotation.x = -s; l.legL.rotation.x = -s; l.legR.rotation.x = s; }
+                    window.app.broadcastPosition({ x: this.myAvatar.position.x, y: this.myAvatar.position.y, z: this.myAvatar.position.z, ry: this.myAvatar.rotation.y });
+                } else {
+                    const l = this.myAvatar.userData.limbs;
+                    if(l) { l.armL.rotation.x = l.armR.rotation.x = l.legL.rotation.x = l.legR.rotation.x = 0; }
                 }
-                
-                const lerpFactor = 1.0 - Math.pow(0.001, dt); 
 
+                const lerp = 1.0 - Math.pow(0.001, dt);
                 for(const id in this.avatars) {
                     const av = this.avatars[id];
                     if(av.userData.targetPos) {
-                        av.position.lerp(av.userData.targetPos, lerpFactor);
+                        av.position.lerp(av.userData.targetPos, lerp);
                         let d = av.userData.targetRot - av.rotation.y;
-                        while(d>Math.PI)d-=Math.PI*2; while(d<-Math.PI)d+=Math.PI*2;
-                        av.rotation.y += d * lerpFactor;
-                        
+                        while(d > Math.PI) d -= Math.PI*2; while(d < -Math.PI) d += Math.PI*2;
+                        av.rotation.y += d * lerp;
                         if(av.position.distanceTo(av.userData.targetPos) > 0.1) {
-                             const s = Math.sin(this.clock.elapsedTime*10)*0.6;
-                             if(av.userData.limbs) {
-                                 av.userData.limbs.armL.rotation.x = s; av.userData.limbs.armR.rotation.x = -s;
-                                 av.userData.limbs.legL.rotation.x = -s; av.userData.limbs.legR.rotation.x = s;
-                             }
+                             const s = Math.sin(Date.now() * 0.015) * 0.6;
+                             const l = av.userData.limbs;
+                             if(l) { l.armL.rotation.x = s; l.armR.rotation.x = -s; l.legL.rotation.x = -s; l.legR.rotation.x = s; }
                         }
                     }
                 }
-                
-                if(this.camMode===0) {
-                    const target = this.myAvatar.position.clone().add(new THREE.Vector3(0, 5, 7));
-                    this.camera.position.lerp(target, 0.1); this.camera.lookAt(this.myAvatar.position);
+
+                if(this.camMode === 0) {
+                    const target = this.myAvatar.position.clone().add(new THREE.Vector3(0, 5, 8));
+                    this.camera.position.lerp(target, 0.1);
+                    this.camera.lookAt(this.myAvatar.position);
                 } else {
-                    this.camera.position.copy(this.myAvatar.position).add(new THREE.Vector3(0, 1.3, 0));
-                    const offset = new THREE.Vector3(0, 0, -0.2).applyQuaternion(this.camera.quaternion);
-                    this.camera.position.add(offset);
+                    this.camera.position.copy(this.myAvatar.position).add(new THREE.Vector3(0,1.3,0));
                 }
                 this.renderer.render(this.scene, this.camera);
             }
@@ -764,665 +682,330 @@
                     contacts: JSON.parse(localStorage.getItem('cozyContacts')) || [],
                     groups: JSON.parse(localStorage.getItem('cozyGroups')) || [],
                     chats: JSON.parse(localStorage.getItem('cozyChats')) || {},
-                    activeChatId: null, isHosting: false, streamerId: null, activeWorldHostId: null,
-                    activeWorldUsers: {} 
+                    activeChatId: null, isHosting: false, activeWorldHostId: null, activeWorldUsers: {}
                 };
-                this.peer = null; this.conns = {}; this.engine = new Engine(); 
-                this.lastPosBroadcast = 0; 
-                this.msgQueue = []; // Queue for pending messages
+                this.peerProfiles = {};
+                this.peer = null; this.conns = {}; 
+                this.engine = new Engine();
+                this.lastPosTime = 0;
                 this.init();
             }
 
             init() {
-                this.updateCustomizationUI();
-                this.engine.updatePreview(this.state.user);
-                if(this.state.user.name) { this.goHome(); this.initPeer(); }
-                else { this.switchView('setup'); }
+                this.updateLook();
+                if(this.state.user.name) { this.goHome(); this.initPeer(); } 
+                else this.switchView('setup');
                 document.getElementById('setup-name').addEventListener('keypress', e => { if(e.key==='Enter') this.finishSetup(); });
                 document.getElementById('msg-input').addEventListener('keypress', e => { if(e.key==='Enter') this.sendMessage(); });
                 document.getElementById('join-group-input').addEventListener('keypress', e => { if(e.key==='Enter') this.joinGroupById(); });
-                
                 if ('wakeLock' in navigator) { try { navigator.wakeLock.request('screen'); } catch(e) {} }
-                document.addEventListener("visibilitychange", () => {
-                    if (!document.hidden && this.peer && this.peer.disconnected) {
-                        this.peer.reconnect();
-                    }
-                });
             }
 
-            updateLook(key, val) { if(key === 'skin') this.state.user.skinColor = val; if(key === 'outfit') this.state.user.outfitColor = val; this.updateAll(); }
-            changeType(dir) { let v = this.state.user.type + dir; if(v < 0) v = 1; if(v > 1) v = 0; this.state.user.type = v; this.updateAll(); }
-            changeHat(dir) { let v = this.state.user.hat + dir; if(v < 0) v = 9; if(v > 9) v = 0; this.state.user.hat = v; this.updateAll(); }
-            changeBack(dir) { let v = (this.state.user.back || 0) + dir; if(v < 0) v = 3; if(v > 3) v = 0; this.state.user.back = v; this.updateAll(); }
-            updateAll() { this.saveUser(); this.updateCustomizationUI(); this.engine.updatePreview(this.state.user); if(this.state.user.name) this.broadcastProfileUpdate(); }
-            updateCustomizationUI() {
+            updateLook(k, v) {
+                if(k==='skin') this.state.user.skinColor = v;
+                if(k==='outfit') this.state.user.outfitColor = v;
+                this.updateCustomizationLabels();
+                this.engine.updatePreview(this.state.user);
+                if(this.myId) this.broadcastProfile();
+            }
+            changeType(d) { this.state.user.type = this.state.user.type===1?0:1; this.updateLook(); }
+            changeHat(d) { this.state.user.hat = (this.state.user.hat+d+10)%10; this.updateLook(); }
+            changeBack(d) { this.state.user.back = (this.state.user.back+d+4)%4; this.updateLook(); }
+            updateCustomizationLabels() {
                 const typeNames = {0:'Human', 1:'Robot'};
                 const hatNames = {0:'None', 1:'Wizard', 2:'Helmet', 3:'Cowboy', 4:'Viking', 5:'Top Hat', 6:'Cap', 7:'Crown', 8:'Phones', 9:'Cat Ears'};
                 const backNames = {0:'None', 1:'Cape', 2:'Wings', 3:'Jetpack'};
-                const setText = (id, txt) => { const el = document.getElementById(id); if(el) el.innerText = txt; };
-                const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
-                setText('setup-lbl-type', typeNames[this.state.user.type]); setText('setup-lbl-hat', hatNames[this.state.user.hat]); setText('setup-lbl-back', backNames[this.state.user.back||0]);
-                setVal('setup-color-base', this.state.user.skinColor); setVal('setup-color-outfit', this.state.user.outfitColor);
-                
-                setText('lbl-type', typeNames[this.state.user.type]); setText('lbl-hat', hatNames[this.state.user.hat]); setText('lbl-back', backNames[this.state.user.back||0]);
-                setVal('color-base', this.state.user.skinColor); setVal('color-outfit', this.state.user.outfitColor);
+                const ids = ['setup-lbl', 'lbl']; // update both setup and settings modals
+                ids.forEach(prefix => {
+                    const t = document.getElementById(prefix+'-type'); if(t) t.innerText=typeNames[this.state.user.type];
+                    const h = document.getElementById(prefix+'-hat'); if(h) h.innerText=hatNames[this.state.user.hat];
+                    const b = document.getElementById(prefix+'-back'); if(b) b.innerText=backNames[this.state.user.back||0];
+                });
             }
-            saveUser() { localStorage.setItem('cozyUser', JSON.stringify(this.state.user)); }
-            broadcastProfileUpdate() {
-                if(this.engine.isWorldActive) this.engine.spawnMe(this.state.user);
-                const packet = { type: 'profile', user: this.state.user, senderId: this.myId };
-                if(this.state.isHosting) this.broadcast(packet); else Object.values(this.conns).forEach(c => this.safeSend(c, packet));
-            }
-            finishSetup() { const n = document.getElementById('setup-name').value; if(!n) return alert("Name required!"); this.state.user.name = n; this.saveUser(); this.goHome(); this.initPeer(); }
-            switchView(v) {
-                document.querySelectorAll('.ui-layer').forEach(el=>el.classList.add('hidden')); 
-                const target = document.getElementById(v === 'setup' ? 'view-setup' : v === 'home' ? 'view-home' : 'view-messenger');
-                target.classList.remove('hidden');
-                
-                const canvas = document.getElementById('preview-canvas');
-                if(v === 'home') {
-                     document.getElementById('home-avatar-preview').innerHTML = ''; 
-                     document.getElementById('home-avatar-preview').appendChild(canvas);
-                } else if (v === 'setup') {
-                     document.getElementById('setup-preview-container').appendChild(canvas);
-                }
 
+            finishSetup() {
+                const n = document.getElementById('setup-name').value.trim();
+                if(!n) return showToast("Name required!");
+                this.state.user.name = n;
+                localStorage.setItem('cozyUser', JSON.stringify(this.state.user));
+                this.goHome(); this.initPeer();
+            }
+
+            switchView(v) {
+                document.querySelectorAll('.ui-layer').forEach(e => e.classList.add('hidden'));
+                document.getElementById('view-'+v).classList.remove('hidden');
+                const c = document.getElementById('preview-canvas');
+                const t = v==='setup' ? 'setup-preview-container' : (v==='home'?'home-avatar-preview':'settings-preview-container');
+                const el = document.getElementById(t);
+                if(el) el.appendChild(c);
                 if(v==='messenger') { this.renderGroups(); this.renderContacts(); }
             }
             goHome() {
                 this.switchView('home');
                 document.getElementById('home-welcome-name').innerText = `Hi, ${this.state.user.name}!`;
-                document.getElementById('home-my-id').innerText = this.myId || 'Connecting...';
                 document.getElementById('stat-contacts').innerText = this.state.contacts.length;
                 document.getElementById('stat-groups').innerText = this.state.groups.length;
             }
+            toggleSettingsModal() { 
+                document.getElementById('settings-modal').classList.toggle('hidden'); 
+                this.updateCustomizationLabels(); 
+            }
 
-            // Networking
             initPeer() {
-                let savedId = localStorage.getItem('cozy_peer_id');
-                if(!savedId) { savedId = crypto.randomUUID(); localStorage.setItem('cozy_peer_id', savedId); }
-                this.myId = savedId;
-                
+                let id = localStorage.getItem('cozy_peer_id') || crypto.randomUUID();
+                localStorage.setItem('cozy_peer_id', id);
+                this.myId = id;
                 this.peer = new Peer(this.myId, CONFIG.peerConfig);
-                this.peer.on('open', id => { 
+                this.peer.on('open', id => {
                     this.myId = id; 
-                    const idDisplay = document.getElementById('home-my-id');
-                    if(idDisplay) idDisplay.innerText = id;
-                    showToast("Connected to Universe");
-                    this.reconnectToContacts();
+                    document.getElementById('home-my-id').innerText = id;
+                    showToast("Online");
+                    this.reconnect();
                 });
-                this.peer.on('connection', c => this.handleConnection(c));
-                this.peer.on('call', call => { call.answer(); call.on('stream', s => this.handleIncomingStream(s, call.peer)); });
-                this.peer.on('error', err => { 
-                    if(err.type === 'unavailable-id') { this.myId = crypto.randomUUID(); localStorage.setItem('cozy_peer_id', this.myId); this.initPeer(); } 
-                    else setTimeout(() => { if(this.peer.disconnected) this.peer.reconnect(); }, 3000);
-                });
+                this.peer.on('connection', c => this.handleConn(c));
+                this.peer.on('call', call => { call.answer(); call.on('stream', s => this.engine.handleIncomingStream(s, call.peer)); });
             }
-            reconnectToContacts() {
-                this.state.contacts.forEach(c => {
-                     if(!this.conns[c.id]) {
-                         const conn = this.peer.connect(c.id, {serialization: 'json', reliable: true});
-                         this.handleConnection(conn);
-                     }
-                });
-            }
-            handleConnection(conn) {
+
+            reconnect() { this.state.contacts.forEach(c => { if(!this.conns[c.id]) this.connect(c.id); }); }
+            connect(id) { if(id === this.myId || this.conns[id]) return; const conn = this.peer.connect(id); this.handleConn(conn); }
+            handleConn(conn) {
                 this.conns[conn.peer] = conn;
                 conn.on('open', () => {
-                    conn.send({ type: 'handshake', user: this.state.user, senderId: this.myId, isWorldHost: this.state.isHosting && this.engine.isWorldActive, hostingGroup: this.state.isHosting && this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX) ? this.state.groups.find(g=>g.id===this.state.activeChatId) : null });
-                    this.updateConnStatus(conn.peer, 'open');
-                    
-                    // Process pending queue
-                    const pending = this.msgQueue.filter(m => m.targetId === conn.peer);
-                    if(pending.length > 0) {
-                        pending.forEach(m => {
-                            conn.send(m.packet);
-                            this.updateMessageStatus(m.msgId, 'sent');
-                        });
-                        this.msgQueue = this.msgQueue.filter(m => m.targetId !== conn.peer);
-                    }
-
-                    let contact = this.state.contacts.find(c => c.id === conn.peer);
-                    if (!contact) { contact = { id: conn.peer, name: 'Unknown', unread: 0 }; this.state.contacts.push(contact); }
-                    if (contact.name === 'Unknown' && conn.user) { contact.name = conn.user.name; localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
-                    
-                    showToast("Peer Connected");
+                    const isGroupHost = this.state.groups.some(g => g.id === this.state.activeChatId && g.hostId === this.myId);
+                    conn.send({ type: 'handshake', user: this.state.user, senderId: this.myId, isWorldHost: this.state.isHosting && this.engine.isWorldActive });
+                    this.updateConnUI(conn.peer, true);
                 });
                 conn.on('data', d => this.handleData(conn.peer, d));
-                conn.on('close', () => { 
-                    delete this.conns[conn.peer]; this.engine.removePeerAvatar(conn.peer); this.updateConnStatus(conn.peer, 'closed');
-                    let needsRender = false;
-                    this.state.groups.forEach(g => {
-                         if(g.hostId === conn.peer) { g.isLive = false; needsRender = true; }
-                    });
-                    if(needsRender) this.renderGroups();
-                    if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); alert("Host closed the world."); this.state.activeWorldHostId = null; this.refreshWorldUI(); }
+                conn.on('close', () => {
+                    delete this.conns[conn.peer];
+                    this.engine.removePeerAvatar(conn.peer);
+                    this.updateConnUI(conn.peer, false);
+                    if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); showToast("Host Disconnected"); }
                     if(this.state.isHosting) { delete this.state.activeWorldUsers[conn.peer]; this.broadcastWorldState(); }
                 });
             }
-            handleData(id, data) {
-                // RELAY FIX: Use senderId from packet, fallback to id only for direct
-                const sourceId = data.senderId || id; 
 
-                if(data.type === 'chat') { 
-                    this.addMessage(id, data.msg, false, data.senderName, data.timestamp, data.groupId, 'sent'); 
-                    if(this.state.activeChatId !== id && this.state.activeChatId !== data.groupId) {
-                        const isGroupMsg = data.groupId && data.groupId.startsWith(CONFIG.HOST_ID_PREFIX);
-                        if (isGroupMsg) {
-                            const g = this.state.groups.find(g => g.id === data.groupId);
-                            if(g) { g.unread = (g.unread || 0) + 1; localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups)); this.renderGroups(); }
-                        } else {
-                            const c = this.state.contacts.find(c => c.id === id);
-                            if(c) { c.unread = (c.unread || 0) + 1; localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
+            handleData(peerId, data) {
+                const sourceId = data.senderId || peerId;
+                switch(data.type) {
+                    case 'handshake':
+                        this.peerProfiles[sourceId] = data.user;
+                        const c = this.state.contacts.find(x=>x.id===sourceId);
+                        if(c && c.name === 'Unknown') { c.name = data.user.name; this.renderContacts(); }
+                        if(data.isWorldHost) { this.state.activeWorldHostId = sourceId; this.updateWorldUI(); }
+                        break;
+                    case 'chat':
+                        this.addMessage(data.groupId || peerId, data.msg, false, data.senderName, data.ts);
+                        if(this.state.isHosting) this.broadcast(data, peerId);
+                        break;
+                    case 'pos':
+                        if(this.state.isHosting) {
+                            this.state.activeWorldUsers[sourceId] = { ...this.state.activeWorldUsers[sourceId], ...data, id: sourceId };
+                            this.broadcast(data, peerId); 
                         }
-                    }
-                    
-                    if(this.state.isHosting) this.broadcast(data, id); 
-                    if (!this.state.contacts.find(c => c.id === id)) { this.state.contacts.push({ id: id, name: data.senderName, unread: 0 }); localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
-                } else if(data.type === 'pos') { 
-                    // UPDATE PEER VISIBILITY
-                    this.engine.updatePeer(sourceId, data); 
-                    if(this.state.isHosting) {
-                        // Update Host State but don't wipe profile if it exists
-                        const existing = this.state.activeWorldUsers[sourceId] || {};
-                        this.state.activeWorldUsers[sourceId] = { ...existing, ...data, id: sourceId };
-                        this.broadcast(data, id); 
-                    }
-                } else if(data.type === 'world-enter') {
-                    if(this.state.isHosting) {
-                         // MERGE profile data, don't overwrite pos
-                         const existing = this.state.activeWorldUsers[sourceId] || {};
-                         this.state.activeWorldUsers[sourceId] = { ...existing, ...data.user, id: sourceId }; 
-                         this.broadcastWorldState(); 
-                    }
-                } else if(data.type === 'world-leave') {
-                    this.engine.removePeerAvatar(sourceId);
-                    if(this.state.isHosting) {
-                        delete this.state.activeWorldUsers[sourceId];
-                        this.broadcastWorldState(); 
-                    }
-                } else if(data.type === 'world-closed') { 
-                    if (this.state.activeWorldHostId === id) {
-                        this.leaveWorld();
-                        alert("The Host has closed the world.");
-                        this.state.activeWorldHostId = null;
-                        this.refreshWorldUI();
-                        const g = this.state.groups.find(g => g.hostId === id);
-                        if(g) { g.isLive = false; this.renderGroups(); }
-                    }
-                } else if(data.type === 'world-state') {
-                    if (data.worldType && this.pendingWorldType !== data.worldType) {
-                        this.pendingWorldType = data.worldType;
-                        if (this.engine.isWorldActive) {
-                            this.engine.createWorld(data.worldType);
-                            this.engine.spawnMe(this.state.user);
+                        this.engine.updatePeer(sourceId, data);
+                        break;
+                    case 'profile':
+                        this.peerProfiles[sourceId] = data.user;
+                        this.engine.updatePeer(sourceId, data.user);
+                        if(this.state.isHosting) this.broadcast(data, peerId);
+                        break;
+                    case 'world-state':
+                        if(data.users) Object.keys(data.users).forEach(uid => { if(uid !== this.myId) { this.peerProfiles[uid] = data.users[uid]; this.engine.updatePeer(uid, data.users[uid]); } });
+                        if(!this.engine.isWorldActive && data.worldType) { this.pendingWorldType = data.worldType; showToast("World Active"); this.updateWorldUI(); }
+                        break;
+                    case 'world-enter':
+                        if(this.state.isHosting) {
+                            this.state.activeWorldUsers[sourceId] = { ...data.user, id: sourceId };
+                            this.broadcastWorldState(); 
+                            this.broadcast({ type: 'profile', user: data.user, senderId: sourceId });
                         }
-                    }
-                    const currentIds = Object.keys(data.users);
-                    for(const uid in data.users) { 
-                        if(uid !== this.myId) {
-                            this.engine.updatePeer(uid, data.users[uid]); 
+                        break;
+                    case 'group-invite':
+                        if(confirm(`Join group "${data.groupName}"?`)) {
+                            if(!this.state.groups.find(g=>g.id===data.groupId)) {
+                                this.state.groups.push({id: data.groupId, name: data.groupName, hostId: sourceId});
+                                localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
+                                this.renderGroups();
+                            }
+                            this.openChat(data.groupId);
                         }
-                    }
-                    for(const localId in this.engine.avatars) { if(!currentIds.includes(localId)) this.engine.removePeerAvatar(localId); }
-                } else if(data.type === 'world-invite') { 
-                    this.pendingWorldType = data.worldType; this.state.activeWorldHostId = data.hostId || id; this.refreshWorldUI();
-                    const g = this.state.groups.find(g => g.hostId === (data.hostId || id));
-                    if(g) { g.isLive = true; this.renderGroups(); }
-                    showToast("World Invite Received");
-                } else if(data.type === 'world-status') { 
-                    if (data.isActive) {
-                        this.state.activeWorldHostId = id;
-                        this.pendingWorldType = data.worldType;
-                        this.refreshWorldUI();
-                        const g = this.state.groups.find(g => g.hostId === id);
-                        if(g) { g.isLive = true; this.renderGroups(); }
-                    }
-                } else if(data.type === 'request-world-status') { 
-                    if(this.state.isHosting && this.engine.isWorldActive) {
-                        this.safeSend(this.conns[id], { type: 'world-status', isActive: true, worldType: this.pendingWorldType, senderId: this.myId });
-                    }
-                } else if(data.type === 'request-world-state') { 
-                    if(this.state.isHosting) this.broadcastWorldState();
-                } else if(data.type === 'profile') {
-                    this.engine.removePeerAvatar(sourceId); this.engine.updatePeer(sourceId, { ...data.user, x:0, y:0, z:0, ry:0 });
-                } else if(data.type === 'handshake') {
-                    if(this.conns[id]) this.conns[id].user = data.user;
-                    const contact = this.state.contacts.find(c => c.id === id);
-                    if(contact) { 
-                        contact.name = data.user.name; 
-                        localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); 
-                        this.renderContacts(); 
-                        if(this.state.activeChatId === id) document.getElementById('current-chat-name').innerText = contact.name;
-                    }
-                    
-                    if(data.isWorldHost) { 
-                        this.state.activeWorldHostId = id; 
-                        this.refreshWorldUI();
-                        if(data.hostingGroup) {
-                             const g = this.state.groups.find(x => x.id === data.hostingGroup.id);
-                             if(g) { g.isLive = true; this.renderGroups(); }
-                        }
-                    }
-                    if(data.hostingGroup) {
-                        this.pendingJoinGroup = data.hostingGroup;
-                        document.getElementById('join-host-name').innerText = data.user.name;
-                        document.getElementById('join-group-name').innerText = data.hostingGroup.name;
-                        document.getElementById('modal-join-request').classList.remove('hidden');
-                    }
-                } else if(data.type === 'group-invite') {
-                    if(confirm(`${data.senderName} invited you to group "${data.groupName}". Join?`)) {
-                         if(!this.state.groups.find(g=>g.id===data.groupId)) {
-                             this.state.groups.push({id:data.groupId, name:data.groupName, hostId: id}); 
-                             localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
-                             this.renderGroups();
-                         }
-                         this.openChat(data.groupId);
-                    }
+                        break;
                 }
+            }
+
+            broadcast(data, excludeId) { Object.values(this.conns).forEach(c => { if(c.peer !== excludeId && c.open) c.send(data); }); }
+            broadcastPosition(pos) {
+                const now = Date.now(); if(now - this.lastPosTime < 80) return; this.lastPosTime = now;
+                const packet = { type: 'pos', ...pos, senderId: this.myId };
+                if(this.state.isHosting) { this.state.activeWorldUsers[this.myId] = { ...this.state.user, ...pos, id: this.myId }; this.broadcast(packet); } 
+                else { Object.values(this.conns).forEach(c => c.open && c.send(packet)); }
+            }
+            broadcastProfile() {
+                this.state.user.id = this.myId; 
+                const packet = { type: 'profile', user: this.state.user, senderId: this.myId };
+                if(this.state.isHosting) this.broadcast(packet);
+                else Object.values(this.conns).forEach(c => c.open && c.send(packet));
             }
             broadcastWorldState() {
                 const users = { ...this.state.activeWorldUsers };
-                if (this.myAvatar) {
-                    users[this.myId] = { 
-                        ...this.state.user, 
-                        x: this.myAvatar.position.x, 
-                        y: this.myAvatar.position.y, 
-                        z: this.myAvatar.position.z, 
-                        ry: this.myAvatar.rotation.y,
-                        id: this.myId 
-                    };
-                }
+                if(this.engine.myAvatar) users[this.myId] = { ...this.state.user, x: this.engine.myAvatar.position.x, y: this.engine.myAvatar.position.y, z: this.engine.myAvatar.position.z, ry: this.engine.myAvatar.rotation.y, id: this.myId };
                 this.broadcast({ type: 'world-state', users, worldType: this.pendingWorldType, senderId: this.myId });
             }
-            joinGroupById() {
-                const id = document.getElementById('join-group-input').value.trim();
-                if(!id) return;
-                showToast("Connecting...");
-                this.addContact(id);
-            }
-            acceptGroupInvite() {
-                const g = this.pendingJoinGroup;
-                if(g) {
-                    if(!this.state.groups.find(gr=>gr.id===g.id)) {
-                        this.state.groups.push({id:g.id, name:g.name, hostId: this.state.activeWorldHostId || this.myId}); 
-                        localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
-                        this.renderGroups();
-                    }
-                    this.openChat(g.id);
-                }
-                document.getElementById('modal-join-request').classList.add('hidden');
-            }
-            refreshWorldUI() {
-                const launchCtrl = document.getElementById('launch-controls');
-                const joinBtn = document.getElementById('join-world-btn-container');
-                const liveBadge = document.getElementById('live-badge');
-                const watchBtn = document.getElementById('btn-watch-stream');
-                let isRelevantWorld = false;
-                if (this.state.activeWorldHostId && this.state.activeChatId) {
-                    const currentGroup = this.state.groups.find(g => g.id === this.state.activeChatId);
-                    if (currentGroup && currentGroup.hostId === this.state.activeWorldHostId) {
-                        isRelevantWorld = true;
-                    }
-                }
-                if (isRelevantWorld) {
-                    liveBadge.classList.remove('hidden');
-                    if (this.state.activeWorldHostId === this.myId) { 
-                        launchCtrl.classList.remove('hidden'); 
-                        joinBtn.classList.add('hidden'); 
-                        watchBtn.classList.add('hidden');
-                    } else { 
-                        launchCtrl.classList.add('hidden'); 
-                        joinBtn.classList.remove('hidden'); 
-                        watchBtn.classList.remove('hidden'); 
-                    }
-                } else {
-                    liveBadge.classList.add('hidden'); 
-                    launchCtrl.classList.remove('hidden'); 
-                    joinBtn.classList.add('hidden'); 
-                    watchBtn.classList.add('hidden');
-                }
-            }
-            showCreateGroupModal() { document.getElementById('modal-create-group').classList.remove('hidden'); }
-            createGroup() {
-                const name = document.getElementById('new-group-name').value.trim();
-                if(!name) return;
-                const groupId = CONFIG.HOST_ID_PREFIX + Math.random().toString(36).substr(2, 9);
-                this.state.groups.push({ id: groupId, name: name, hostId: this.myId, unread: 0 });
-                localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
-                this.renderGroups();
-                document.getElementById('modal-create-group').classList.add('hidden');
-                this.openChat(groupId);
-            }
-            renderGroups() {
-                const l = document.getElementById('groups-list'); l.innerHTML = '';
-                this.state.groups.forEach(g => {
-                    const div = document.createElement('div');
-                    div.className = `p-2 rounded flex items-center justify-between text-sm hover:bg-gray-200 dark:hover:bg-gray-700 ${this.state.activeChatId===g.id ? 'bg-gray-200 dark:bg-gray-700 font-bold' : ''}`;
-                    const badge = (g.unread > 0) ? `<span class="ml-auto bg-red-500 text-white text-[10px] px-1.5 rounded-full">${g.unread}</span>` : '';
-                    const live = g.isLive ? `<span class="ml-1 px-1 rounded bg-red-500 text-white text-[9px] font-bold">LIVE</span>` : '';
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 cursor-pointer flex-1 overflow-hidden" onclick="app.openChat('${g.id}')">
-                            <span class="w-2 h-2 rounded-full bg-cozy-500 flex-shrink-0"></span> 
-                            <span class="truncate">${g.name}</span>
-                            ${live}
-                            ${badge}
-                        </div>
-                        <button onclick="event.stopPropagation(); app.leaveGroup('${g.id}')" class="p-1 text-gray-400 hover:text-red-500"><i class="ph ph-trash"></i></button>
-                    `;
-                    l.appendChild(div);
-                });
-            }
-            addContact(forceId) { 
-                const id = forceId || document.getElementById('add-peer-input').value.trim();
-                if(id && id!==this.myId) {
-                    if (!this.state.contacts.find(c=>c.id===id)) {
-                        this.state.contacts.push({id, name:'Unknown', unread: 0}); 
-                        localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
-                        this.renderContacts(); 
-                    }
-                    if (!this.conns[id] || !this.conns[id].open) { showToast("Connecting..."); const conn = this.peer.connect(id, {serialization: 'json', reliable: true}); this.handleConnection(conn); } 
-                    else { this.openChat(id); }
-                }
-            }
-            renderContacts() {
-                const l = document.getElementById('contacts-list'); l.innerHTML = '';
-                this.state.contacts.forEach(c => {
-                    const div = document.createElement('div');
-                    div.className = `p-2 rounded cursor-pointer flex items-center gap-2 text-sm hover:bg-gray-200 dark:hover:bg-gray-700 ${this.state.activeChatId===c.id ? 'bg-gray-200 dark:bg-gray-700' : ''}`;
-                    const badge = (c.unread > 0) ? `<span class="ml-auto bg-red-500 text-white text-[10px] px-1.5 rounded-full">${c.unread}</span>` : '';
-                    div.onclick = () => this.openChat(c.id);
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 cursor-pointer flex-1 overflow-hidden" onclick="app.openChat('${c.id}')">
-                            <div class="w-6 h-6 rounded-full bg-gray-400 flex-shrink-0 flex items-center justify-center text-[10px] text-white">${c.name[0]||'?'}</div> 
-                            <span class="truncate text-xs">${c.name === 'Unknown' ? c.id.substr(0,6)+'...' : c.name}</span>
-                            ${badge}
-                        </div>
-                        <button onclick="event.stopPropagation(); app.removeContact('${c.id}')" class="p-1 text-gray-400 hover:text-red-500"><i class="ph ph-trash"></i></button>
-                    `;
-                    l.appendChild(div);
-                });
-            }
-            leaveGroup(id) {
-                if(!confirm("Remove group?")) return;
-                this.state.groups = this.state.groups.filter(g => g.id !== id);
-                localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
-                if(this.state.activeChatId === id) { this.state.activeChatId = null; document.getElementById('chat-panel').classList.add('hidden'); }
-                this.renderGroups();
-            }
-            removeContact(id) {
-                if(!confirm("Remove contact?")) return;
-                this.state.contacts = this.state.contacts.filter(c => c.id !== id);
-                localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
-                if(this.state.activeChatId === id) { this.state.activeChatId = null; document.getElementById('chat-panel').classList.add('hidden'); }
-                this.renderContacts();
-            }
-            openChat(id) {
-                this.state.activeChatId = id;
-                
-                const isGroup = id.startsWith(CONFIG.HOST_ID_PREFIX);
-                if (isGroup) {
-                    const g = this.state.groups.find(g => g.id === id);
-                    if(g) { g.unread = 0; localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups)); this.renderGroups(); }
-                } else {
-                    const c = this.state.contacts.find(c => c.id === id);
-                    if(c) { c.unread = 0; localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
-                }
 
-                const groupData = this.state.groups.find(g=>g.id===id);
-                document.getElementById('chat-panel').classList.remove('hidden');
-                if(window.innerWidth<768) document.querySelector('#view-messenger > div:first-child').classList.add('hidden');
-                if(isGroup) {
-                    document.getElementById('current-chat-name').innerText = groupData ? groupData.name : "Group";
-                    document.getElementById('world-actions').classList.remove('hidden');
-                    this.state.isHosting = (groupData && groupData.hostId === this.myId);
-                    document.getElementById('chat-status').innerText = this.state.isHosting ? "You are Host" : "Connected";
-                    
-                    if (groupData && groupData.hostId !== this.myId) {
-                        if (this.conns[groupData.hostId] && this.conns[groupData.hostId].open) {
-                            this.safeSend(this.conns[groupData.hostId], { type: 'request-world-status', senderId: this.myId });
-                        }
-                    } else if (this.state.isHosting && this.engine.isWorldActive) {
-                        this.state.activeWorldHostId = this.myId;
-                    } else {
-                        this.state.activeWorldHostId = null;
-                    }
-                    
-                    this.refreshWorldUI();
-                    
-                    if (this.engine.isWorldActive) {
-                        Object.values(this.conns).forEach(c => {
-                             if(c.open) this.safeSend(c, { type: 'request-world-state', senderId: this.myId });
-                        });
-                    }
-
-                } else {
-                    const c = this.state.contacts.find(c=>c.id === id);
-                    document.getElementById('current-chat-name').innerText = c ? c.name : 'Direct Chat';
-                    document.getElementById('world-actions').classList.add('hidden');
-                    this.state.isHosting = false;
-                    if(!this.conns[id] || !this.conns[id].open) {
-                        this.updateConnStatus(id, 'closed');
-                        const conn = this.peer.connect(id, {serialization: 'json', reliable: true});
-                        this.handleConnection(conn);
-                    } else { this.updateConnStatus(id, 'open'); }
-                }
-                this.renderMessages(id);
-            }
-            updateConnStatus(id, status) {
-                if(this.state.activeChatId !== id) return;
-                const el = document.getElementById('conn-indicator');
-                if(status === 'open') { el.className='w-2 h-2 rounded-full bg-green-500 flex-shrink-0'; document.getElementById('chat-status').innerText="Online"; }
-                else { el.className='w-2 h-2 rounded-full bg-red-500 flex-shrink-0'; document.getElementById('chat-status').innerText="Offline"; }
-            }
-            sendMessage() {
-                const txt = document.getElementById('msg-input').value.trim();
-                if(!txt) return;
-                const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                const msgId = Date.now() + Math.random().toString(36).substr(2,9);
-                const packet = { type: 'chat', msg: txt, senderName: this.state.user.name, timestamp: ts, groupId: this.state.activeChatId, senderId: this.myId };
-                
-                // Add to local chat immediately
-                this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts, this.state.activeChatId, 'pending', msgId);
-                
-                let targetId = null;
-                if(this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX)) {
-                    if(this.state.isHosting) {
-                        this.broadcast(packet); 
-                        this.updateMessageStatus(msgId, 'sent');
-                    } else {
-                        const g = this.state.groups.find(x=>x.id===this.state.activeChatId);
-                        targetId = g ? g.hostId : null;
-                    }
-                } else { 
-                    targetId = this.state.activeChatId; 
-                }
-
-                if(targetId) {
-                    const conn = this.conns[targetId];
-                    if (conn && conn.open) {
-                        this.safeSend(conn, packet);
-                        this.updateMessageStatus(msgId, 'sent');
-                    } else {
-                        // QUEUE IT
-                        this.msgQueue.push({ targetId, packet, msgId });
-                        if(!conn) {
-                            // Try to reconnect if completely missing
-                            const newConn = this.peer.connect(targetId, {serialization: 'json', reliable: true});
-                            this.handleConnection(newConn);
-                        }
-                    }
-                }
-                
-                document.getElementById('msg-input').value = '';
-            }
-            safeSend(conn, data) {
-                if(!conn) return; 
-                if(conn.open) conn.send(data);
-            }
-            addMessage(chatId, txt, isMe, name, ts, groupId, status = 'sent', msgId = null) {
-                const tid = groupId && groupId.startsWith(CONFIG.HOST_ID_PREFIX) ? groupId : chatId;
-                if(!this.state.chats[tid]) this.state.chats[tid] = [];
-                this.state.chats[tid].push({txt, isMe, name, ts, status, msgId});
-                localStorage.setItem('cozyChats', JSON.stringify(this.state.chats));
-                if(this.state.activeChatId === tid) this.renderMessages(tid);
-                if(this.engine.isWorldActive) { 
-                    const d=document.createElement('div'); d.innerHTML=`<span class="opacity-50 text-xs">${name}:</span> ${txt}`; 
-                    const log = document.getElementById('world-chat-log');
-                    log.appendChild(d);
-                    log.scrollTop = log.scrollHeight; 
-                }
-            }
-            updateMessageStatus(msgId, status) {
-                if(!msgId) return;
-                for(const key in this.state.chats) {
-                    const chat = this.state.chats[key];
-                    const m = chat.find(x => x.msgId === msgId);
-                    if(m) { 
-                        m.status = status; 
-                        localStorage.setItem('cozyChats', JSON.stringify(this.state.chats));
-                        if(this.state.activeChatId === key) this.renderMessages(key);
-                        break;
-                    }
-                }
-            }
-            renderMessages(chatId) {
-                const c = document.getElementById('messages-container'); c.innerHTML = '';
-                const msgs = this.state.chats[chatId] || [];
-                msgs.forEach(m => {
-                    const div = document.createElement('div');
-                    div.className = `msg-row ${m.isMe ? 'msg-me' : 'msg-them'}`;
-                    const statusIcon = m.isMe ? `<span class="msg-status ${m.status === 'sent' ? 'status-sent' : 'status-pending'}"><i class="ph ${m.status === 'sent' ? 'ph-check-circle' : 'ph-check'}"></i></span>` : '';
-                    div.innerHTML = `<div class="msg-content"><div class="text-[10px] opacity-50 px-1 mb-0.5">${m.name} • ${m.ts}</div><div class="msg-bubble">${m.txt}${statusIcon}</div></div>`;
-                    c.appendChild(div);
-                });
-                requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
-            }
-            broadcast(data, excludeId) { Object.values(this.conns).forEach(c => { if(c.peer !== excludeId) this.safeSend(c, data); }); }
-            broadcastPosition(pos) {
-                const now = Date.now();
-                if (now - this.lastPosBroadcast < 100) return; 
-                this.lastPosBroadcast = now;
-
-                // Always attach senderId!
-                if(this.state.isHosting) {
-                    this.state.activeWorldUsers[this.myId] = { ...this.state.user, ...pos, id: this.myId };
-                    this.broadcast({type:'pos', ...pos, senderId: this.myId}, this.myId);
-                }
-                else Object.values(this.conns).forEach(c => this.safeSend(c, {type:'pos', ...pos, senderId: this.myId}));
-            }
             launchWorld() {
                 const t = document.getElementById('world-select').value;
-                this.pendingWorldType = t; this.state.activeWorldHostId = this.myId;
+                this.pendingWorldType = t;
+                this.state.activeWorldHostId = this.myId;
+                this.state.activeWorldUsers = {};
                 this.enterWorld(t);
-                this.broadcast({type:'world-invite', worldType: t, hostId: this.myId, senderId: this.myId});
-                
-                const g = this.state.groups.find(g=>g.id===this.state.activeChatId);
-                if(g) { g.isLive = true; this.renderGroups(); }
-                
-                this.refreshWorldUI();
-                this.state.activeWorldUsers = {[this.myId]: {...this.state.user, id: this.myId}}; 
-                this.broadcastWorldState(); 
+                this.state.isHosting = true;
+                this.broadcast({ type: 'world-state', worldType: t, users: {}, senderId: this.myId });
+                this.updateWorldUI();
             }
-            joinWorld() { this.enterWorld(this.pendingWorldType || 'meadow'); }
-            enterWorld(t) {
+            joinWorld() {
+                if(!this.pendingWorldType) return;
+                this.enterWorld(this.pendingWorldType);
+                if(this.state.activeWorldHostId && this.conns[this.state.activeWorldHostId]) {
+                    this.conns[this.state.activeWorldHostId].send({ type: 'world-enter', user: this.state.user, senderId: this.myId });
+                }
+            }
+            enterWorld(type) {
                 document.getElementById('world-canvas').style.display='block';
                 document.getElementById('world-overlay').classList.remove('hidden');
-                
-                const jZone = document.getElementById('joystick-zone');
-                if(jZone && window.matchMedia("(max-width: 768px)").matches) jZone.style.display='block';
-                const tZone = document.getElementById('touch-look-zone');
-                if(tZone && window.matchMedia("(max-width: 768px)").matches) tZone.style.display='block';
-
                 document.getElementById('view-messenger').classList.add('hidden');
-                this.engine.isWorldActive=true; this.engine.createWorld(t);
-                this.engine.spawnMe(this.state.user);
-                document.getElementById('world-input').onkeypress = e => { if(e.key==='Enter'){ document.getElementById('msg-input').value=e.target.value; this.sendMessage(); e.target.value=''; }};
-                
-                if(!this.state.isHosting && this.state.activeWorldHostId && this.conns[this.state.activeWorldHostId]) {
-                     this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-enter', user: this.state.user, senderId: this.myId });
-                     this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'request-world-state', senderId: this.myId });
-                }
+                if(window.matchMedia("(max-width: 768px)").matches) { document.getElementById('joystick-zone').style.display='block'; document.getElementById('touch-look-zone').style.display='block'; }
+                this.engine.isWorldActive = true; this.engine.createWorld(type); this.engine.spawnMe(this.state.user);
             }
             leaveWorld() {
                 document.getElementById('world-canvas').style.display='none';
                 document.getElementById('world-overlay').classList.add('hidden');
-                
-                const jZone = document.getElementById('joystick-zone');
-                if(jZone) jZone.style.display='none';
-                const tZone = document.getElementById('touch-look-zone');
-                if(tZone) tZone.style.display='none';
-                
+                document.getElementById('joystick-zone').style.display='none';
+                document.getElementById('touch-look-zone').style.display='none';
                 document.getElementById('view-messenger').classList.remove('hidden');
-                this.engine.isWorldActive=false;
-                
-                if(this.state.isHosting) {
-                     const g = this.state.groups.find(g=>g.id===this.state.activeChatId);
-                     if(g) { g.isLive = false; this.renderGroups(); }
-                }
+                this.engine.isWorldActive = false; this.state.isHosting = false;
+            }
+            updateWorldUI() {
+                const isLive = !!this.state.activeWorldHostId;
+                const isMe = this.state.activeWorldHostId === this.myId;
+                document.getElementById('live-badge').classList.toggle('hidden', !isLive);
+                document.getElementById('launch-controls').classList.toggle('hidden', isLive && !isMe);
+                document.getElementById('join-world-btn-container').classList.toggle('hidden', !isLive || isMe);
+            }
 
-                if(!this.state.isHosting && this.state.activeWorldHostId) {
-                     if (this.conns[this.state.activeWorldHostId]) {
-                        this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-leave', senderId: this.myId });
-                     }
-                } else if (this.state.isHosting) {
-                    this.state.activeWorldUsers = {};
-                    this.broadcast({ type: 'world-closed', senderId: this.myId }); 
+            sendMessage() {
+                const txt = document.getElementById('msg-input').value.trim();
+                if(!txt || !this.state.activeChatId) return;
+                const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts);
+                const packet = { type: 'chat', msg: txt, senderName: this.state.user.name, ts, groupId: this.state.activeChatId, senderId: this.myId };
+                if(this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX)) {
+                    if(this.state.isHosting) this.broadcast(packet);
+                    else { const g = this.state.groups.find(x=>x.id===this.state.activeChatId); if(g && this.conns[g.hostId]) this.conns[g.hostId].send(packet); }
+                } else { if(this.conns[this.state.activeChatId]) this.conns[this.state.activeChatId].send(packet); }
+                document.getElementById('msg-input').value = '';
+            }
+            addMessage(chatId, txt, isMe, name, ts) {
+                if(!this.state.chats[chatId]) this.state.chats[chatId] = [];
+                this.state.chats[chatId].push({txt, isMe, name, ts});
+                localStorage.setItem('cozyChats', JSON.stringify(this.state.chats));
+                if(this.state.activeChatId === chatId) this.renderMessages(chatId);
+                if(this.engine.isWorldActive) { const l = document.getElementById('world-chat-log'); const d = document.createElement('div'); d.innerHTML = `<span class="opacity-60 text-xs">${name}:</span> ${txt}`; l.appendChild(d); l.scrollTop = l.scrollHeight; }
+            }
+            renderMessages(id) {
+                const c = document.getElementById('messages-container'); c.innerHTML = '';
+                const msgs = this.state.chats[id] || [];
+                msgs.forEach(m => {
+                    const d = document.createElement('div'); d.className = `msg-row ${m.isMe?'msg-me':'msg-them'}`;
+                    d.innerHTML = `<div class="msg-content"><div class="text-[10px] opacity-50 px-1 mb-0.5">${m.name} • ${m.ts}</div><div class="msg-bubble">${m.txt}</div></div>`;
+                    c.appendChild(d);
+                });
+                requestAnimationFrame(() => c.scrollTop = c.scrollHeight);
+            }
+
+            createGroup() {
+                const name = document.getElementById('new-group-name').value;
+                if(!name) return;
+                const gid = CONFIG.HOST_ID_PREFIX + Math.random().toString(36).substr(2,9);
+                this.state.groups.push({ id: gid, name, hostId: this.myId });
+                localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups));
+                this.renderGroups();
+                document.getElementById('modal-create-group').classList.add('hidden');
+                this.openChat(gid);
+            }
+            addContact(val) {
+                const id = val || document.getElementById('add-peer-input').value;
+                if(id && id !== this.myId && !this.state.contacts.find(c=>c.id===id)) {
+                    this.state.contacts.push({id, name: 'Unknown'});
+                    localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
+                    this.renderContacts();
+                    this.connect(id);
                 }
             }
-            shareScreen() {
-                navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(stream => {
-                    this.state.streamerId = this.myId;
-                    this.engine.applyVideoTexture(stream);
-                    this.handleIncomingStream(stream, this.myId);
-                    if(this.state.isHosting) this.broadcast({type:'stream-start', streamerId: this.myId, senderId: this.myId});
-                    Object.values(this.conns).forEach(c => this.peer.call(c.peer, stream));
+            openChat(id) {
+                this.state.activeChatId = id;
+                document.getElementById('chat-panel').classList.remove('hidden');
+                if(window.innerWidth < 768) document.querySelector('#view-messenger > div:first-child').classList.add('hidden');
+                const isGroup = id.startsWith(CONFIG.HOST_ID_PREFIX);
+                if(isGroup) {
+                    const g = this.state.groups.find(x=>x.id===id);
+                    document.getElementById('current-chat-name').innerText = g ? g.name : 'Group';
+                    this.state.isHosting = (g && g.hostId === this.myId);
+                    this.state.activeWorldHostId = g ? g.hostId : null;
+                    document.getElementById('world-actions').classList.remove('hidden');
+                } else {
+                    const c = this.state.contacts.find(x=>x.id===id);
+                    document.getElementById('current-chat-name').innerText = c ? c.name : 'Direct';
+                    document.getElementById('world-actions').classList.add('hidden');
+                    this.state.isHosting = false;
+                }
+                this.updateConnUI(id, this.conns[id] && this.conns[id].open);
+                this.renderMessages(id);
+                this.updateWorldUI();
+            }
+            backToContacts() { document.getElementById('chat-panel').classList.add('hidden'); document.querySelector('#view-messenger > div:first-child').classList.remove('hidden'); }
+            
+            renderGroups() {
+                const l = document.getElementById('groups-list'); l.innerHTML = '';
+                this.state.groups.forEach(g => {
+                    const d = document.createElement('div');
+                    d.className = `p-2 rounded flex items-center justify-between text-sm hover:bg-gray-700 cursor-pointer text-white ${this.state.activeChatId===g.id?'bg-gray-700 font-bold':''}`;
+                    d.innerHTML = `<span onclick="app.openChat('${g.id}')">${g.name}</span><button class="text-gray-500 hover:text-red-500" onclick="app.deleteGroup('${g.id}')"><i class="ph ph-trash"></i></button>`;
+                    l.appendChild(d);
                 });
             }
-            handleIncomingStream(stream, id) {
-                this.state.streamerId = id;
-                const video = document.getElementById('stream-video');
-                video.srcObject = stream;
-                if(id !== this.myId) { video.muted = false; video.play(); }
-                if(!this.engine.isWorldActive) document.getElementById('btn-watch-stream').classList.remove('hidden');
-                this.engine.applyVideoTexture(stream);
+            renderContacts() {
+                const l = document.getElementById('contacts-list'); l.innerHTML = '';
+                this.state.contacts.forEach(c => {
+                    const d = document.createElement('div');
+                    d.className = `p-2 rounded flex items-center justify-between text-sm hover:bg-gray-700 cursor-pointer text-white ${this.state.activeChatId===c.id?'bg-gray-700 font-bold':''}`;
+                    d.innerHTML = `<span onclick="app.openChat('${c.id}')">${c.name}</span><span class="w-2 h-2 rounded-full ${this.conns[c.id]?'bg-green-500':'bg-gray-600'}"></span>`;
+                    l.appendChild(d);
+                });
             }
-            setWorldVolume(val) { const v = document.getElementById('stream-video'); if(v) v.volume = val; }
-            toggleStreamMute() { const v = document.getElementById('stream-video'); v.muted = !v.muted; document.getElementById('btn-stream-mute').innerHTML = v.muted ? '<i class="ph ph-speaker-slash text-white"></i>' : '<i class="ph ph-speaker-high text-white"></i>'; }
-            openStreamModal() { document.getElementById('modal-stream').classList.remove('hidden'); const v = document.getElementById('stream-video'); v.muted = false; }
-            closeStreamModal() { document.getElementById('modal-stream').classList.add('hidden'); }
-            backToContacts() { document.getElementById('chat-panel').classList.add('hidden'); document.querySelector('#view-messenger > div:first-child').classList.remove('hidden'); }
-            toggleCameraMode() { this.engine.toggleCamera(); }
-            toggleSettingsModal() { 
-                const modal = document.getElementById('settings-modal');
-                modal.classList.toggle('hidden');
-                if (!modal.classList.contains('hidden')) {
-                    const previewCanvas = document.getElementById('preview-canvas');
-                    document.getElementById('settings-preview-container').appendChild(previewCanvas);
-                } else {
-                    if(!document.getElementById('view-setup').classList.contains('hidden')) {
-                        const previewCanvas = document.getElementById('preview-canvas');
-                        document.getElementById('setup-preview-container').appendChild(previewCanvas);
-                    }
-                    else if(!document.getElementById('view-home').classList.contains('hidden')) {
-                         const previewCanvas = document.getElementById('preview-canvas');
-                         document.getElementById('home-avatar-preview').appendChild(previewCanvas);
-                    }
-                }
-            }
-            resetProfile() {
-                if(confirm("Are you sure? This will delete your profile, chats, and contacts.")) {
-                    localStorage.clear();
-                    location.reload();
-                }
-            }
+            updateConnUI(id, isOpen) { if(this.state.activeChatId !== id) return; document.getElementById('conn-indicator').className = `w-2 h-2 rounded-full ${isOpen?'bg-green-500':'bg-red-500'} flex-shrink-0`; document.getElementById('chat-status').innerText = isOpen ? "Online" : "Offline"; }
+            showCreateGroupModal() { document.getElementById('modal-create-group').classList.remove('hidden'); }
+            deleteGroup(id) { if(confirm("Delete group?")) { this.state.groups = this.state.groups.filter(g=>g.id!==id); localStorage.setItem('cozyGroups', JSON.stringify(this.state.groups)); this.renderGroups(); if(this.state.activeChatId===id) this.backToContacts(); } }
             copyMyId() { navigator.clipboard.writeText(this.myId); showToast("ID Copied"); }
             copyGroupInvite() { navigator.clipboard.writeText(this.myId); showToast("Host ID Copied"); }
+            showInviteModal() {
+                const l = document.getElementById('invite-list'); l.innerHTML = '';
+                this.state.contacts.forEach(c => {
+                    const b = document.createElement('button');
+                    b.className = "w-full p-2 text-left hover:bg-gray-700 rounded text-white flex justify-between";
+                    b.innerHTML = `<span>${c.name}</span>`;
+                    b.onclick = () => { if(this.conns[c.id]) { this.conns[c.id].send({ type: 'group-invite', groupName: document.getElementById('current-chat-name').innerText, groupId: this.state.activeChatId, senderId: this.myId }); showToast("Sent"); } };
+                    l.appendChild(b);
+                });
+                document.getElementById('modal-invite-contact').classList.remove('hidden');
+            }
             exportData() { 
-                const data = { user: this.state.user, contacts: this.state.contacts, groups: this.state.groups };
-                if(document.getElementById('include-history-check').checked) data.chats = this.state.chats;
-                const s = JSON.stringify(data); document.getElementById('import-area').value = s; navigator.clipboard.writeText(s);
-                showToast("Data Copied to Clipboard");
+                const d = { user: this.state.user, groups: this.state.groups, contacts: this.state.contacts };
+                if(document.getElementById('include-history-check').checked) d.chats = this.state.chats;
+                const s = JSON.stringify(d);
+                document.getElementById('import-area').value = s;
+                navigator.clipboard.writeText(s);
+                showToast("Data Copied");
             }
             importData() {
                 try {
@@ -1431,28 +1014,32 @@
                     if(d.groups) localStorage.setItem('cozyGroups', JSON.stringify(d.groups));
                     if(d.chats) localStorage.setItem('cozyChats', JSON.stringify(d.chats));
                     location.reload();
-                } catch(e) { alert("Invalid"); }
+                } catch(e) { showToast("Invalid Data"); }
             }
-            showInviteModal() {
-                const list = document.getElementById('invite-list');
-                list.innerHTML = '';
-                if(this.state.contacts.length === 0) list.innerHTML = '<div class="text-center opacity-50 p-4">No contacts found</div>';
-                this.state.contacts.forEach(c => {
-                   const btn = document.createElement('button');
-                   btn.className = "w-full p-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2 mb-1";
-                   btn.innerHTML = `<div class="w-8 h-8 rounded bg-gray-500 flex items-center justify-center text-xs text-white font-bold">${c.name[0]||'?'}</div> <span>${c.name}</span>`;
-                   btn.onclick = () => {
-                       if(this.conns[c.id] && this.conns[c.id].open) {
-                           this.safeSend(this.conns[c.id], { type: 'group-invite', groupName: document.getElementById('current-chat-name').innerText, groupId: this.state.activeChatId, senderName: this.state.user.name, senderId: this.myId });
-                           showToast("Invite Sent");
-                           document.getElementById('modal-invite-contact').classList.add('hidden');
-                       } else { showToast("User Offline"); }
-                   };
-                   list.appendChild(btn);
-                });
-                document.getElementById('modal-invite-contact').classList.remove('hidden');
+            resetProfile() { if(confirm("Clear all data?")) { localStorage.clear(); location.reload(); } }
+            joinGroupById() {
+                const id = document.getElementById('join-group-input').value.trim();
+                if(!id) return;
+                showToast("Connecting...");
+                this.addContact(id);
             }
+            acceptGroupInvite() {
+                 // Logic handled in handleData, this is just for the button click if needed later
+                 document.getElementById('modal-join-request').classList.add('hidden');
+            }
+            shareScreen() {
+                 navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(stream => {
+                     this.engine.applyVideoTexture(stream);
+                     this.engine.handleIncomingStream(stream, this.myId);
+                     Object.values(this.conns).forEach(c => this.peer.call(c.peer, stream));
+                 });
+            }
+            openStreamModal() { document.getElementById('modal-stream').classList.remove('hidden'); const v = document.getElementById('stream-video'); v.muted = false; }
+            closeStreamModal() { document.getElementById('modal-stream').classList.add('hidden'); }
+            toggleStreamMute() { const v = document.getElementById('stream-video'); v.muted = !v.muted; document.getElementById('btn-stream-mute').innerHTML = v.muted ? '<i class="ph ph-speaker-slash text-white"></i>' : '<i class="ph ph-speaker-high text-white"></i>'; }
+            toggleCameraMode() { this.engine.toggleCamera(); }
         }
+
         window.onload = () => window.app = new App();
     </script>
 </body>
