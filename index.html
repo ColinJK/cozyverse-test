@@ -216,6 +216,7 @@
                             <option value="meadow">Sunny Meadow</option>
                             <option value="neon">Neon Night</option>
                             <option value="clouds">Cloud Haven</option>
+                            <option value="christmas">Cozy Christmas</option>
                         </select>
                         <button onclick="app.launchWorld()" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-full text-sm shadow font-semibold flex items-center gap-1 whitespace-nowrap"><i class="ph ph-globe"></i> Launch</button>
                     </div>
@@ -438,6 +439,7 @@
                 this.keys = {}; this.mobileInput = {x:0, y:0};
                 this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
                 this.clock = new THREE.Clock();
+                this.snowSystem = null; // for Christmas world
 
                 this.initLights();
                 this.setupInput();
@@ -458,17 +460,24 @@
             }
 
             createWorld(t) {
+                // Cleanup previous world special effects
+                if(this.snowSystem) { this.scene.remove(this.snowSystem); this.snowSystem = null; }
                 this.scene.children = this.scene.children.filter(c => c.isLight || (c.userData && c.userData.isAvatar));
+                
                 let gc = 0x5D9C59, sc = 0x87CEEB;
                 if (t === 'cabin') { this.renderer.setClearColor(0x111111); this.genCabin(); return; }
                 if (t === 'neon') { gc = 0x220022; sc=0x110011; this.scene.fog = new THREE.Fog(0x110011, 10, 50); }
                 else if (t === 'clouds') { gc=0xeeeeee; sc=0xcceeff; this.scene.fog = new THREE.Fog(0xcceeff, 10, 60); }
+                else if (t === 'christmas') { gc=0xeeeeff; sc=0x000033; this.scene.fog = new THREE.Fog(0x000033, 10, 60); } // Christmas settings
                 else { this.scene.fog = new THREE.Fog(0x87CEEB, 10, 60); }
+                
                 this.renderer.setClearColor(sc);
                 const g = new THREE.Mesh(new THREE.CylinderGeometry(60, 60, 5, 32), new THREE.MeshLambertMaterial({color: gc, flatShading: true}));
                 g.position.y = -2.5; g.receiveShadow=true; this.scene.add(g);
+                
                 if(t==='meadow') this.genTrees(30);
                 if(t==='neon') this.genNeon();
+                if(t==='christmas') this.genChristmas();
                 this.createScreen(0, 6, -12, 1.0);
             }
 
@@ -502,6 +511,55 @@
                     const l2 = new THREE.Mesh(new THREE.ConeGeometry(1.2,1.8,6), gm); l2.position.y=2.5;
                     t.add(l1,l2); this.scene.add(t);
                 }
+            }
+            
+            genChristmas() {
+                // Snow Particles
+                const geo = new THREE.BufferGeometry();
+                const count = 2000;
+                const pos = new Float32Array(count * 3);
+                for(let i=0; i<count*3; i++) pos[i] = (Math.random()-0.5)*100;
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                this.snowSystem = new THREE.Points(geo, new THREE.PointsMaterial({color:0xffffff, size:0.2}));
+                this.scene.add(this.snowSystem);
+
+                // Christmas Trees
+                const tm = new THREE.MeshLambertMaterial({color:0x0f4d0f, flatShading:true});
+                const om = [new THREE.MeshLambertMaterial({color:0xff0000}), new THREE.MeshLambertMaterial({color:0xffff00}), new THREE.MeshLambertMaterial({color:0x0000ff})];
+                for(let i=0; i<20; i++) {
+                     const x=(Math.random()-0.5)*80, z=(Math.random()-0.5)*80;
+                     if(Math.abs(x)<10 && Math.abs(z)<10) continue;
+                     const t = new THREE.Group(); t.position.set(x,0,z);
+                     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,1), new THREE.MeshLambertMaterial({color:0x4a3c31})); trunk.position.y=0.5;
+                     const l1 = new THREE.Mesh(new THREE.ConeGeometry(2,3,8), tm); l1.position.y=2;
+                     const l2 = new THREE.Mesh(new THREE.ConeGeometry(1.5,2.5,8), tm); l2.position.y=3.5;
+                     t.add(trunk, l1, l2);
+                     // Ornaments
+                     for(let j=0; j<6; j++) {
+                         const o = new THREE.Mesh(new THREE.SphereGeometry(0.15), om[j%3]);
+                         o.position.set((Math.random()-0.5)*1.5, 1.5+Math.random()*2, (Math.random()-0.5)*1.5);
+                         t.add(o);
+                     }
+                     this.scene.add(t);
+                }
+                // Snowman
+                const s = new THREE.Group(); s.position.set(5,0.6,5);
+                const b1 = new THREE.Mesh(new THREE.SphereGeometry(0.8), new THREE.MeshLambertMaterial({color:0xffffff}));
+                const b2 = new THREE.Mesh(new THREE.SphereGeometry(0.6), new THREE.MeshLambertMaterial({color:0xffffff})); b2.position.y=1.1;
+                const b3 = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshLambertMaterial({color:0xffffff})); b3.position.y=1.9;
+                const nose = new THREE.Mesh(new THREE.ConeGeometry(0.05,0.3), new THREE.MeshLambertMaterial({color:0xff6600})); nose.position.set(0,1.9,0.4); nose.rotation.x=1.5;
+                s.add(b1,b2,b3,nose);
+                this.scene.add(s);
+            }
+            
+            updateSnow() {
+                if(!this.snowSystem) return;
+                const pos = this.snowSystem.geometry.attributes.position.array;
+                for(let i=1; i<pos.length; i+=3) {
+                    pos[i] -= 0.1;
+                    if(pos[i] < 0) pos[i] = 50;
+                }
+                this.snowSystem.geometry.attributes.position.needsUpdate = true;
             }
 
             genNeon() { const g = new THREE.GridHelper(100, 50, 0xff00ff, 0x00ffff); g.position.y=0.1; this.scene.add(g); }
@@ -555,6 +613,12 @@
                     this.screenMesh.material = new THREE.MeshBasicMaterial({ map: new THREE.VideoTexture(video) });
                 }
             }
+            
+            stopStream() {
+                 if(this.screenMesh) this.screenMesh.material = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                 const v = document.getElementById('stream-video');
+                 if(v) { v.srcObject = null; v.load(); }
+            }
 
             // FIX: Added missing method to handle incoming streams
             handleIncomingStream(stream, peerId) {
@@ -563,6 +627,10 @@
                 if (video) {
                     video.srcObject = stream;
                     video.play().catch(e => console.log("Autoplay prevented:", e));
+                }
+                // Show watch button automatically if not hosting/streaming
+                if(!window.app.state.localStream) {
+                    window.app.openStreamModal();
                 }
             }
 
@@ -633,6 +701,7 @@
 
             loop() {
                 requestAnimationFrame(() => this.loop());
+                this.updateSnow();
                 // Always render preview scene if needed
                 if(this.previewRenderer.domElement.parentNode) {
                     if(this.previewScene.children.length > 2) this.previewScene.children[this.previewScene.children.length-1].rotation.y += 0.01;
@@ -702,7 +771,8 @@
                     contacts: JSON.parse(localStorage.getItem('cozyContacts')) || [],
                     groups: JSON.parse(localStorage.getItem('cozyGroups')) || [],
                     chats: JSON.parse(localStorage.getItem('cozyChats')) || {},
-                    activeChatId: null, isHosting: false, activeWorldHostId: null, activeWorldUsers: {}
+                    activeChatId: null, isHosting: false, activeWorldHostId: null, activeWorldUsers: {},
+                    activeStreamerId: null, localStream: null
                 };
                 this.peerProfiles = {};
                 this.peer = null; this.conns = {}; 
@@ -820,7 +890,6 @@
                     const isGroupHost = this.state.groups.some(g => g.id === this.state.activeChatId && g.hostId === this.myId);
                     conn.send({ type: 'handshake', user: this.state.user, senderId: this.myId, isWorldHost: this.state.isHosting && this.engine.isWorldActive });
                     this.updateConnUI(conn.peer, true);
-                    // Render contacts to update online dot
                     this.renderContacts();
                 });
                 conn.on('data', d => this.handleData(conn.peer, d));
@@ -828,9 +897,16 @@
                     delete this.conns[conn.peer];
                     this.engine.removePeerAvatar(conn.peer);
                     this.updateConnUI(conn.peer, false);
-                    this.renderContacts(); // Update online dot
+                    this.renderContacts(); 
                     if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); showToast("Host Disconnected"); }
                     if(this.state.isHosting) { delete this.state.activeWorldUsers[conn.peer]; this.broadcastWorldState(); }
+                    
+                    // Cleanup stream if streamer disconnected
+                    if(this.state.activeStreamerId === conn.peer) {
+                         this.state.activeStreamerId = null;
+                         this.engine.stopStream();
+                         this.updateWorldUI();
+                    }
                 });
             }
 
@@ -841,28 +917,23 @@
                 switch(data.type) {
                     case 'handshake':
                         this.peerProfiles[sourceId] = data.user;
-                        // AUTO-ADD CONTACT IF MISSING (Fixes 1-way visibility)
                         if(!this.state.contacts.find(x => x.id === sourceId)) {
                             this.state.contacts.push({id: sourceId, name: data.user.name});
                             localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
                             this.renderContacts();
                         } else {
-                            // Update existing name if unknown
                             const c = this.state.contacts.find(x=>x.id===sourceId);
                             if(c && c.name === 'Unknown') { c.name = data.user.name; this.renderContacts(); }
                         }
-                        
                         if(data.isWorldHost) { this.state.activeWorldHostId = sourceId; this.updateWorldUI(); }
                         break;
                     case 'chat':
                         this.addMessage(data.groupId || sourceId, data.msg, false, data.senderName, data.ts);
-                        
-                        // FIX: Host always relays group messages regardless of current UI state
                         const targetGroupId = data.groupId;
                         if (targetGroupId) {
                             const group = this.state.groups.find(g => g.id === targetGroupId);
                             if (group && group.hostId === this.myId) {
-                                this.broadcast(data, sourceId); // exclude sender
+                                this.broadcast(data, sourceId); 
                             }
                         }
                         break;
@@ -881,12 +952,21 @@
                     case 'world-state':
                         if(data.users) Object.keys(data.users).forEach(uid => { if(uid !== this.myId) { this.peerProfiles[uid] = data.users[uid]; this.engine.updatePeer(uid, data.users[uid]); } });
                         if(!this.engine.isWorldActive && data.worldType) { this.pendingWorldType = data.worldType; showToast("World Active"); this.updateWorldUI(); }
+                        if(data.streamerId) {
+                             this.state.activeStreamerId = data.streamerId;
+                             this.updateWorldUI();
+                        }
                         break;
                     case 'world-enter':
                         if(this.state.isHosting) {
                             this.state.activeWorldUsers[sourceId] = { ...data.user, id: sourceId };
                             this.broadcastWorldState(); 
                             this.broadcast({ type: 'profile', user: data.user, senderId: sourceId });
+                        }
+                        // SYNC FIX: Streamer calls new late joiner
+                        if(this.state.localStream && sourceId !== this.myId) {
+                             console.log("Streamer calling late joiner:", sourceId);
+                             this.peer.call(sourceId, this.state.localStream);
                         }
                         break;
                     case 'group-invite':
@@ -898,6 +978,18 @@
                             }
                             this.openChat(data.groupId);
                         }
+                        break;
+                    case 'stream-start':
+                        this.state.activeStreamerId = sourceId;
+                        this.updateWorldUI();
+                        showToast(data.senderName + " started streaming");
+                        break;
+                    case 'stream-end':
+                        this.state.activeStreamerId = null;
+                        this.engine.stopStream();
+                        this.updateWorldUI();
+                        this.closeStreamModal();
+                        showToast("Stream ended");
                         break;
                 }
             }
@@ -918,7 +1010,7 @@
             broadcastWorldState() {
                 const users = { ...this.state.activeWorldUsers };
                 if(this.engine.myAvatar) users[this.myId] = { ...this.state.user, x: this.engine.myAvatar.position.x, y: this.engine.myAvatar.position.y, z: this.engine.myAvatar.position.z, ry: this.engine.myAvatar.rotation.y, id: this.myId };
-                this.broadcast({ type: 'world-state', users, worldType: this.pendingWorldType, senderId: this.myId });
+                this.broadcast({ type: 'world-state', users, worldType: this.pendingWorldType, senderId: this.myId, streamerId: this.state.activeStreamerId });
             }
 
             launchWorld() {
@@ -952,6 +1044,7 @@
                 document.getElementById('touch-look-zone').style.display='none';
                 document.getElementById('view-messenger').classList.remove('hidden');
                 this.engine.isWorldActive = false; this.state.isHosting = false;
+                if(this.state.localStream) this.stopScreenShare();
             }
             updateWorldUI() {
                 const isLive = !!this.state.activeWorldHostId;
@@ -959,26 +1052,39 @@
                 document.getElementById('live-badge').classList.toggle('hidden', !isLive);
                 document.getElementById('launch-controls').classList.toggle('hidden', isLive && !isMe);
                 document.getElementById('join-world-btn-container').classList.toggle('hidden', !isLive || isMe);
+                
+                // Stream lock UI
+                const btn = document.getElementById('btn-share-screen');
+                if(this.state.activeStreamerId && this.state.activeStreamerId !== this.myId) {
+                    btn.disabled = true;
+                    btn.innerText = "Stream Active";
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                } else if (this.state.localStream) {
+                    btn.disabled = false;
+                    btn.innerText = "Stop Sharing";
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-purple-600');
+                    btn.classList.add('bg-red-600');
+                } else {
+                    btn.disabled = false;
+                    btn.innerText = "Share Screen";
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-red-600');
+                    btn.classList.add('bg-purple-600');
+                }
             }
 
             sendMessage() {
                 const txt = document.getElementById('msg-input').value.trim();
                 if(!txt || !this.state.activeChatId) return;
 
-                // HARDENED: Ensure active chat ID is valid
                 const isGroup = this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX);
                 const isValidGroup = isGroup && this.state.groups.some(g => g.id === this.state.activeChatId);
                 const isValidContact = !isGroup && this.state.contacts.some(c => c.id === this.state.activeChatId);
 
-                if (!isValidGroup && !isValidContact) {
-                    showToast("Invalid Chat ID");
-                    return;
-                }
+                if (!isValidGroup && !isValidContact) { showToast("Invalid Chat ID"); return; }
 
                 const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
                 this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts);
                 
-                // FIX: Explicitly send null groupId for DM so receiver uses senderId as key
                 const packet = { 
                     type: 'chat', 
                     msg: txt, 
@@ -992,12 +1098,9 @@
                     if(this.state.isHosting) this.broadcast(packet);
                     else { const g = this.state.groups.find(x=>x.id===this.state.activeChatId); if(g && this.conns[g.hostId] && this.conns[g.hostId].open) this.conns[g.hostId].send(packet); }
                 } else { 
-                    // FIX: check for open connection before sending
                     if(this.conns[this.state.activeChatId] && this.conns[this.state.activeChatId].open) {
                         this.conns[this.state.activeChatId].send(packet);
-                    } else {
-                        showToast("Offline");
-                    }
+                    } else { showToast("Offline"); }
                 }
                 document.getElementById('msg-input').value = '';
             }
@@ -1035,7 +1138,6 @@
 
                 const existing = this.state.contacts.find(c => c.id === id);
                 if(existing) {
-                    // Force handshake if connection exists but one side might have deleted it
                     if(this.conns[id] && this.conns[id].open) {
                         this.conns[id].send({ type: 'handshake', user: this.state.user, senderId: this.myId, isWorldHost: this.state.isHosting && this.engine.isWorldActive });
                         showToast("Contact Refreshed");
@@ -1054,17 +1156,10 @@
             }
             deleteContact(id) {
                 if(!confirm("Delete contact and chat history?")) return;
-                // Actively close connection
-                if(this.conns[id]) {
-                    this.conns[id].close();
-                    delete this.conns[id];
-                }
-                // Remove data
+                if(this.conns[id]) { this.conns[id].close(); delete this.conns[id]; }
                 this.state.contacts = this.state.contacts.filter(c => c.id !== id);
                 localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts));
                 if(this.state.chats[id]) { delete this.state.chats[id]; localStorage.setItem('cozyChats', JSON.stringify(this.state.chats)); }
-                
-                // Update UI
                 this.renderContacts();
                 if(this.state.activeChatId === id) this.backToContacts();
                 showToast("Contact Deleted");
@@ -1156,12 +1251,61 @@
                  document.getElementById('modal-join-request').classList.add('hidden');
             }
             shareScreen() {
+                // If already sharing, stop
+                if(this.state.localStream) {
+                    this.stopScreenShare();
+                    return;
+                }
+                
+                // If someone else is streaming, block
+                if(this.state.activeStreamerId && this.state.activeStreamerId !== this.myId) return;
+
                  navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(stream => {
+                     this.state.localStream = stream;
+                     this.state.activeStreamerId = this.myId;
+                     
+                     // UI Update
+                     this.updateWorldUI();
                      this.engine.applyVideoTexture(stream);
-                     this.engine.handleIncomingStream(stream, this.myId);
-                     Object.values(this.conns).forEach(c => this.peer.call(c.peer, stream));
+                     
+                     // Broadcast start
+                     if(this.state.isHosting) {
+                         this.broadcast({ type: 'stream-start', senderName: this.state.user.name, senderId: this.myId });
+                     } else if (this.state.activeWorldHostId && this.conns[this.state.activeWorldHostId]) {
+                         this.conns[this.state.activeWorldHostId].send({ type: 'stream-start', senderName: this.state.user.name, senderId: this.myId });
+                     }
+
+                     // Call all connected peers in the world
+                     Object.keys(this.state.activeWorldUsers).forEach(pid => {
+                         if(pid !== this.myId) {
+                             console.log("Calling peer:", pid);
+                             this.peer.call(pid, stream);
+                         }
+                     });
+                     
+                     // Handle user stopping via browser UI
+                     stream.getVideoTracks()[0].onended = () => {
+                        this.stopScreenShare();
+                     };
                  });
             }
+            stopScreenShare() {
+                if(this.state.localStream) {
+                    this.state.localStream.getTracks().forEach(t => t.stop());
+                    this.state.localStream = null;
+                }
+                this.state.activeStreamerId = null;
+                this.engine.stopStream();
+                this.updateWorldUI();
+                
+                // Broadcast End
+                 if(this.state.isHosting) {
+                     this.broadcast({ type: 'stream-end', senderId: this.myId });
+                 } else if (this.state.activeWorldHostId && this.conns[this.state.activeWorldHostId]) {
+                     this.conns[this.state.activeWorldHostId].send({ type: 'stream-end', senderId: this.myId });
+                 }
+            }
+            
             openStreamModal() { document.getElementById('modal-stream').classList.remove('hidden'); const v = document.getElementById('stream-video'); v.muted = false; }
             closeStreamModal() { document.getElementById('modal-stream').classList.add('hidden'); }
             toggleStreamMute() { const v = document.getElementById('stream-video'); v.muted = !v.muted; document.getElementById('btn-stream-mute').innerHTML = v.muted ? '<i class="ph ph-speaker-slash text-white"></i>' : '<i class="ph ph-speaker-high text-white"></i>'; }
