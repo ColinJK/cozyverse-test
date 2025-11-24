@@ -102,6 +102,10 @@
         .msg-them .msg-bubble { background-color: white; color: #1f2937; border-bottom-left-radius: 2px; }
         .dark .msg-them .msg-bubble { background-color: #374151; color: white; }
 
+        .msg-status { font-size: 10px; margin-left: 4px; display: inline-block; }
+        .status-pending { color: #9ca3af; }
+        .status-sent { color: #60a5fa; }
+
         .video-container { aspect-ratio: 16/9; background: black; width: 100%; border-radius: 8px; overflow: hidden; position: relative; }
         .video-container video { width: 100%; height: 100%; object-fit: contain; }
         
@@ -708,7 +712,7 @@
                         this.myAvatar.userData.limbs.armL.rotation.x = s; this.myAvatar.userData.limbs.armR.rotation.x = -s;
                         this.myAvatar.userData.limbs.legL.rotation.x = -s; this.myAvatar.userData.limbs.legR.rotation.x = s;
                     }
-                    window.app.broadcastPosition({x:this.myAvatar.position.x, y:this.myAvatar.position.y, z:this.myAvatar.position.z, ry:this.myAvatar.rotation.y});
+                    window.app.broadcastPosition({x:this.myAvatar.position.x, y:this.myAvatar.position.y, z:this.myAvatar.position.z, ry:this.myAvatar.rotation.y, senderId:this.myId});
                 }
                 
                 const lerpFactor = 1.0 - Math.pow(0.001, dt); 
@@ -754,7 +758,8 @@
                     activeWorldUsers: {} 
                 };
                 this.peer = null; this.conns = {}; this.engine = new Engine(); 
-                this.lastPosBroadcast = 0; // Throttle limit
+                this.lastPosBroadcast = 0; 
+                this.msgQueue = []; // Queue for pending messages
                 this.init();
             }
 
@@ -791,13 +796,11 @@
                 
                 setText('lbl-type', typeNames[this.state.user.type]); setText('lbl-hat', hatNames[this.state.user.hat]); setText('lbl-back', backNames[this.state.user.back||0]);
                 setVal('color-base', this.state.user.skinColor); setVal('color-outfit', this.state.user.outfitColor);
-                
-                // Note: Preview canvas logic is handled by switchView/toggleSettingsModal now to move the actual canvas element
             }
             saveUser() { localStorage.setItem('cozyUser', JSON.stringify(this.state.user)); }
             broadcastProfileUpdate() {
                 if(this.engine.isWorldActive) this.engine.spawnMe(this.state.user);
-                const packet = { type: 'profile', user: this.state.user };
+                const packet = { type: 'profile', user: this.state.user, senderId: this.myId };
                 if(this.state.isHosting) this.broadcast(packet); else Object.values(this.conns).forEach(c => this.safeSend(c, packet));
             }
             finishSetup() { const n = document.getElementById('setup-name').value; if(!n) return alert("Name required!"); this.state.user.name = n; this.saveUser(); this.goHome(); this.initPeer(); }
@@ -806,10 +809,9 @@
                 const target = document.getElementById(v === 'setup' ? 'view-setup' : v === 'home' ? 'view-home' : 'view-messenger');
                 target.classList.remove('hidden');
                 
-                // Move preview canvas based on view
                 const canvas = document.getElementById('preview-canvas');
                 if(v === 'home') {
-                     document.getElementById('home-avatar-preview').innerHTML = ''; // Clear placeholder
+                     document.getElementById('home-avatar-preview').innerHTML = ''; 
                      document.getElementById('home-avatar-preview').appendChild(canvas);
                 } else if (v === 'setup') {
                      document.getElementById('setup-preview-container').appendChild(canvas);
@@ -857,33 +859,43 @@
             handleConnection(conn) {
                 this.conns[conn.peer] = conn;
                 conn.on('open', () => {
-                    conn.send({ type: 'handshake', user: this.state.user, isWorldHost: this.state.isHosting && this.engine.isWorldActive, hostingGroup: this.state.isHosting && this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX) ? this.state.groups.find(g=>g.id===this.state.activeChatId) : null });
+                    conn.send({ type: 'handshake', user: this.state.user, senderId: this.myId, isWorldHost: this.state.isHosting && this.engine.isWorldActive, hostingGroup: this.state.isHosting && this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX) ? this.state.groups.find(g=>g.id===this.state.activeChatId) : null });
                     this.updateConnStatus(conn.peer, 'open');
                     
+                    // Process pending queue
+                    const pending = this.msgQueue.filter(m => m.targetId === conn.peer);
+                    if(pending.length > 0) {
+                        pending.forEach(m => {
+                            conn.send(m.packet);
+                            this.updateMessageStatus(m.msgId, 'sent');
+                        });
+                        this.msgQueue = this.msgQueue.filter(m => m.targetId !== conn.peer);
+                    }
+
                     let contact = this.state.contacts.find(c => c.id === conn.peer);
                     if (!contact) { contact = { id: conn.peer, name: 'Unknown', unread: 0 }; this.state.contacts.push(contact); }
                     if (contact.name === 'Unknown' && conn.user) { contact.name = conn.user.name; localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
-                    if(conn.msgQueue) { conn.msgQueue.forEach(msg => conn.send(msg)); delete conn.msgQueue; }
+                    
                     showToast("Peer Connected");
                 });
                 conn.on('data', d => this.handleData(conn.peer, d));
                 conn.on('close', () => { 
                     delete this.conns[conn.peer]; this.engine.removePeerAvatar(conn.peer); this.updateConnStatus(conn.peer, 'closed');
-                    
-                    // FIX: If host disconnected, update group live status
                     let needsRender = false;
                     this.state.groups.forEach(g => {
                          if(g.hostId === conn.peer) { g.isLive = false; needsRender = true; }
                     });
                     if(needsRender) this.renderGroups();
-
                     if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); alert("Host closed the world."); this.state.activeWorldHostId = null; this.refreshWorldUI(); }
                     if(this.state.isHosting) { delete this.state.activeWorldUsers[conn.peer]; this.broadcastWorldState(); }
                 });
             }
             handleData(id, data) {
+                // USE SENDER ID FROM PACKET IF AVAILABLE (Relay logic)
+                const sourceId = data.senderId || id; 
+
                 if(data.type === 'chat') { 
-                    this.addMessage(id, data.msg, false, data.senderName, data.timestamp, data.groupId); 
+                    this.addMessage(id, data.msg, false, data.senderName, data.timestamp, data.groupId, 'sent'); 
                     if(this.state.activeChatId !== id && this.state.activeChatId !== data.groupId) {
                         const isGroupMsg = data.groupId && data.groupId.startsWith(CONFIG.HOST_ID_PREFIX);
                         if (isGroupMsg) {
@@ -898,20 +910,21 @@
                     if(this.state.isHosting) this.broadcast(data, id); 
                     if (!this.state.contacts.find(c => c.id === id)) { this.state.contacts.push({ id: id, name: data.senderName, unread: 0 }); localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
                 } else if(data.type === 'pos') { 
-                    this.engine.updatePeer(id, data); 
+                    // FIX: Update avatar using sourceId (sender), not connection id (Host)
+                    this.engine.updatePeer(sourceId, data); 
                     if(this.state.isHosting) {
-                        this.state.activeWorldUsers[id] = { ...(this.state.activeWorldUsers[id] || {}), ...data, id };
+                        this.state.activeWorldUsers[sourceId] = { ...(this.state.activeWorldUsers[sourceId] || {}), ...data, id: sourceId };
                         this.broadcast(data, id); 
                     }
                 } else if(data.type === 'world-enter') {
                     if(this.state.isHosting) {
-                         this.state.activeWorldUsers[id] = { ...data.user, id: id }; 
+                         this.state.activeWorldUsers[sourceId] = { ...data.user, id: sourceId }; 
                          this.broadcastWorldState(); 
                     }
                 } else if(data.type === 'world-leave') {
-                    this.engine.removePeerAvatar(id);
+                    this.engine.removePeerAvatar(sourceId);
                     if(this.state.isHosting) {
-                        delete this.state.activeWorldUsers[id];
+                        delete this.state.activeWorldUsers[sourceId];
                         this.broadcastWorldState(); 
                     }
                 } else if(data.type === 'world-closed') { 
@@ -920,24 +933,18 @@
                         alert("The Host has closed the world.");
                         this.state.activeWorldHostId = null;
                         this.refreshWorldUI();
-                        
-                        // FIX: Update group status
                         const g = this.state.groups.find(g => g.hostId === id);
                         if(g) { g.isLive = false; this.renderGroups(); }
                     }
                 } else if(data.type === 'world-state') {
-                    // FIX: Check if world type matches, if not reload
                     if (data.worldType && this.pendingWorldType !== data.worldType) {
                         this.pendingWorldType = data.worldType;
-                        // Reload world if currently active
                         if (this.engine.isWorldActive) {
                             this.engine.createWorld(data.worldType);
                             this.engine.spawnMe(this.state.user);
                         }
                     }
-
                     const currentIds = Object.keys(data.users);
-                    // FIX: Explicitly filter out MY id so I don't double render myself as a peer
                     for(const uid in data.users) { 
                         if(uid !== this.myId) {
                             this.engine.updatePeer(uid, data.users[uid]); 
@@ -946,30 +953,25 @@
                     for(const localId in this.engine.avatars) { if(!currentIds.includes(localId)) this.engine.removePeerAvatar(localId); }
                 } else if(data.type === 'world-invite') { 
                     this.pendingWorldType = data.worldType; this.state.activeWorldHostId = data.hostId || id; this.refreshWorldUI();
-                    
-                    // FIX: Update Group Live Status
                     const g = this.state.groups.find(g => g.hostId === (data.hostId || id));
                     if(g) { g.isLive = true; this.renderGroups(); }
-                    
                     showToast("World Invite Received");
                 } else if(data.type === 'world-status') { 
                     if (data.isActive) {
                         this.state.activeWorldHostId = id;
                         this.pendingWorldType = data.worldType;
                         this.refreshWorldUI();
-                        
-                        // FIX: Update group live status
                         const g = this.state.groups.find(g => g.hostId === id);
                         if(g) { g.isLive = true; this.renderGroups(); }
                     }
                 } else if(data.type === 'request-world-status') { 
                     if(this.state.isHosting && this.engine.isWorldActive) {
-                        this.safeSend(this.conns[id], { type: 'world-status', isActive: true, worldType: this.pendingWorldType });
+                        this.safeSend(this.conns[id], { type: 'world-status', isActive: true, worldType: this.pendingWorldType, senderId: this.myId });
                     }
-                } else if(data.type === 'request-world-state') { // NEW: Handle state request
+                } else if(data.type === 'request-world-state') { 
                     if(this.state.isHosting) this.broadcastWorldState();
                 } else if(data.type === 'profile') {
-                    this.engine.removePeerAvatar(id); this.engine.updatePeer(id, { ...data.user, x:0, y:0, z:0, ry:0 });
+                    this.engine.removePeerAvatar(sourceId); this.engine.updatePeer(sourceId, { ...data.user, x:0, y:0, z:0, ry:0 });
                 } else if(data.type === 'handshake') {
                     if(this.conns[id]) this.conns[id].user = data.user;
                     const contact = this.state.contacts.find(c => c.id === id);
@@ -977,14 +979,12 @@
                         contact.name = data.user.name; 
                         localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); 
                         this.renderContacts(); 
-                        // FIX: Sync name to header if this is current chat
                         if(this.state.activeChatId === id) document.getElementById('current-chat-name').innerText = contact.name;
                     }
                     
                     if(data.isWorldHost) { 
                         this.state.activeWorldHostId = id; 
                         this.refreshWorldUI();
-                        // FIX: Update group live status
                         if(data.hostingGroup) {
                              const g = this.state.groups.find(x => x.id === data.hostingGroup.id);
                              if(g) { g.isLive = true; this.renderGroups(); }
@@ -996,8 +996,6 @@
                         document.getElementById('join-group-name').innerText = data.hostingGroup.name;
                         document.getElementById('modal-join-request').classList.remove('hidden');
                     }
-                } else if(data.type === 'whoareyou') {
-                    if(this.conns[id]) this.conns[id].send({ type: 'handshake', user: this.state.user });
                 } else if(data.type === 'group-invite') {
                     if(confirm(`${data.senderName} invited you to group "${data.groupName}". Join?`)) {
                          if(!this.state.groups.find(g=>g.id===data.groupId)) {
@@ -1010,7 +1008,6 @@
                 }
             }
             broadcastWorldState() {
-                // FIX: Ensure Host is included in state broadcast so they appear to others
                 const users = { ...this.state.activeWorldUsers };
                 if (this.myAvatar) {
                     users[this.myId] = { 
@@ -1019,10 +1016,10 @@
                         y: this.myAvatar.position.y, 
                         z: this.myAvatar.position.z, 
                         ry: this.myAvatar.rotation.y,
-                        id: this.myId // Ensure ID is explicit
+                        id: this.myId 
                     };
                 }
-                this.broadcast({ type: 'world-state', users, worldType: this.pendingWorldType });
+                this.broadcast({ type: 'world-state', users, worldType: this.pendingWorldType, senderId: this.myId });
             }
             joinGroupById() {
                 const id = document.getElementById('join-group-input').value.trim();
@@ -1047,8 +1044,6 @@
                 const joinBtn = document.getElementById('join-world-btn-container');
                 const liveBadge = document.getElementById('live-badge');
                 const watchBtn = document.getElementById('btn-watch-stream');
-                
-                // FIX: Only show World UI if the active world host belongs to the CURRENTLY OPEN group
                 let isRelevantWorld = false;
                 if (this.state.activeWorldHostId && this.state.activeChatId) {
                     const currentGroup = this.state.groups.find(g => g.id === this.state.activeChatId);
@@ -1056,7 +1051,6 @@
                         isRelevantWorld = true;
                     }
                 }
-
                 if (isRelevantWorld) {
                     liveBadge.classList.remove('hidden');
                     if (this.state.activeWorldHostId === this.myId) { 
@@ -1152,7 +1146,6 @@
             openChat(id) {
                 this.state.activeChatId = id;
                 
-                // Clear unread
                 const isGroup = id.startsWith(CONFIG.HOST_ID_PREFIX);
                 if (isGroup) {
                     const g = this.state.groups.find(g => g.id === id);
@@ -1171,12 +1164,9 @@
                     this.state.isHosting = (groupData && groupData.hostId === this.myId);
                     document.getElementById('chat-status').innerText = this.state.isHosting ? "You are Host" : "Connected";
                     
-                    // FIX: Reset local assumption about world host based on group
                     if (groupData && groupData.hostId !== this.myId) {
-                        // We are a guest. If we know the host is running a world, set it.
-                        // Otherwise, query the host.
                         if (this.conns[groupData.hostId] && this.conns[groupData.hostId].open) {
-                            this.safeSend(this.conns[groupData.hostId], { type: 'request-world-status' });
+                            this.safeSend(this.conns[groupData.hostId], { type: 'request-world-status', senderId: this.myId });
                         }
                     } else if (this.state.isHosting && this.engine.isWorldActive) {
                         this.state.activeWorldHostId = this.myId;
@@ -1186,10 +1176,9 @@
                     
                     this.refreshWorldUI();
                     
-                    // Ask connections about world state (positions) if already inside
                     if (this.engine.isWorldActive) {
                         Object.values(this.conns).forEach(c => {
-                             if(c.open) this.safeSend(c, { type: 'request-world-state' });
+                             if(c.open) this.safeSend(c, { type: 'request-world-state', senderId: this.myId });
                         });
                     }
 
@@ -1216,33 +1205,51 @@
                 const txt = document.getElementById('msg-input').value.trim();
                 if(!txt) return;
                 const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                const packet = { type: 'chat', msg: txt, senderName: this.state.user.name, timestamp: ts, groupId: this.state.activeChatId };
-                this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts, this.state.activeChatId);
+                const msgId = Date.now() + Math.random().toString(36).substr(2,9);
+                const packet = { type: 'chat', msg: txt, senderName: this.state.user.name, timestamp: ts, groupId: this.state.activeChatId, senderId: this.myId };
                 
+                // Add to local chat immediately
+                this.addMessage(this.state.activeChatId, txt, true, this.state.user.name, ts, this.state.activeChatId, 'pending', msgId);
+                
+                let targetId = null;
                 if(this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX)) {
-                    if(this.state.isHosting) this.broadcast(packet); 
-                    else Object.values(this.conns).forEach(c => this.safeSend(c, packet));
-                } else if(this.conns[this.state.activeChatId]) { 
-                    this.safeSend(this.conns[this.state.activeChatId], packet); 
+                    if(this.state.isHosting) {
+                        this.broadcast(packet); 
+                        this.updateMessageStatus(msgId, 'sent');
+                    } else {
+                        const g = this.state.groups.find(x=>x.id===this.state.activeChatId);
+                        targetId = g ? g.hostId : null;
+                    }
+                } else { 
+                    targetId = this.state.activeChatId; 
                 }
+
+                if(targetId) {
+                    const conn = this.conns[targetId];
+                    if (conn && conn.open) {
+                        this.safeSend(conn, packet);
+                        this.updateMessageStatus(msgId, 'sent');
+                    } else {
+                        // QUEUE IT
+                        this.msgQueue.push({ targetId, packet, msgId });
+                        if(!conn) {
+                            // Try to reconnect if completely missing
+                            const newConn = this.peer.connect(targetId, {serialization: 'json', reliable: true});
+                            this.handleConnection(newConn);
+                        }
+                    }
+                }
+                
                 document.getElementById('msg-input').value = '';
             }
             safeSend(conn, data) {
-                if(!conn) return; // CRITICAL FIX: Avoid crash if conn is undefined
+                if(!conn) return; 
                 if(conn.open) conn.send(data);
-                else {
-                    if(!conn.open) {
-                        const newConn = this.peer.connect(conn.peer, {serialization: 'json', reliable: true});
-                        this.handleConnection(newConn);
-                        if(!newConn.msgQueue) newConn.msgQueue = [];
-                        newConn.msgQueue.push(data);
-                    }
-                }
             }
-            addMessage(chatId, txt, isMe, name, ts, groupId) {
+            addMessage(chatId, txt, isMe, name, ts, groupId, status = 'sent', msgId = null) {
                 const tid = groupId && groupId.startsWith(CONFIG.HOST_ID_PREFIX) ? groupId : chatId;
                 if(!this.state.chats[tid]) this.state.chats[tid] = [];
-                this.state.chats[tid].push({txt, isMe, name, ts});
+                this.state.chats[tid].push({txt, isMe, name, ts, status, msgId});
                 localStorage.setItem('cozyChats', JSON.stringify(this.state.chats));
                 if(this.state.activeChatId === tid) this.renderMessages(tid);
                 if(this.engine.isWorldActive) { 
@@ -1252,47 +1259,56 @@
                     log.scrollTop = log.scrollHeight; 
                 }
             }
+            updateMessageStatus(msgId, status) {
+                if(!msgId) return;
+                for(const key in this.state.chats) {
+                    const chat = this.state.chats[key];
+                    const m = chat.find(x => x.msgId === msgId);
+                    if(m) { 
+                        m.status = status; 
+                        localStorage.setItem('cozyChats', JSON.stringify(this.state.chats));
+                        if(this.state.activeChatId === key) this.renderMessages(key);
+                        break;
+                    }
+                }
+            }
             renderMessages(chatId) {
                 const c = document.getElementById('messages-container'); c.innerHTML = '';
                 const msgs = this.state.chats[chatId] || [];
                 msgs.forEach(m => {
                     const div = document.createElement('div');
                     div.className = `msg-row ${m.isMe ? 'msg-me' : 'msg-them'}`;
-                    div.innerHTML = `<div class="msg-content"><div class="text-[10px] opacity-50 px-1 mb-0.5">${m.name} • ${m.ts}</div><div class="msg-bubble">${m.txt}</div></div>`;
+                    const statusIcon = m.isMe ? `<span class="msg-status ${m.status === 'sent' ? 'status-sent' : 'status-pending'}"><i class="ph ${m.status === 'sent' ? 'ph-check-circle' : 'ph-check'}"></i></span>` : '';
+                    div.innerHTML = `<div class="msg-content"><div class="text-[10px] opacity-50 px-1 mb-0.5">${m.name} • ${m.ts}</div><div class="msg-bubble">${m.txt}${statusIcon}</div></div>`;
                     c.appendChild(div);
                 });
-                // FIX: Use RequestAnimationFrame to ensure layout paint before scrolling on mobile
-                requestAnimationFrame(() => {
-                    c.scrollTop = c.scrollHeight;
-                });
+                requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
             }
             broadcast(data, excludeId) { Object.values(this.conns).forEach(c => { if(c.peer !== excludeId) this.safeSend(c, data); }); }
             broadcastPosition(pos) {
-                // FIX: Throttling to prevent network congestion
                 const now = Date.now();
-                if (now - this.lastPosBroadcast < 100) return; // Limit to 10 sends per second
+                if (now - this.lastPosBroadcast < 100) return; 
                 this.lastPosBroadcast = now;
 
+                // Always attach senderId!
                 if(this.state.isHosting) {
-                    // FIX: Host must update their own record in activeWorldUsers so world-state broadcasts are accurate for late joiners
                     this.state.activeWorldUsers[this.myId] = { ...this.state.user, ...pos, id: this.myId };
-                    this.broadcast({type:'pos', ...pos}, this.myId);
+                    this.broadcast({type:'pos', ...pos, senderId: this.myId}, this.myId);
                 }
-                else Object.values(this.conns).forEach(c => this.safeSend(c, {type:'pos', ...pos}));
+                else Object.values(this.conns).forEach(c => this.safeSend(c, {type:'pos', ...pos, senderId: this.myId}));
             }
             launchWorld() {
                 const t = document.getElementById('world-select').value;
                 this.pendingWorldType = t; this.state.activeWorldHostId = this.myId;
                 this.enterWorld(t);
-                this.broadcast({type:'world-invite', worldType: t, hostId: this.myId});
+                this.broadcast({type:'world-invite', worldType: t, hostId: this.myId, senderId: this.myId});
                 
-                // FIX: Set Local Group status
                 const g = this.state.groups.find(g=>g.id===this.state.activeChatId);
                 if(g) { g.isLive = true; this.renderGroups(); }
                 
                 this.refreshWorldUI();
                 this.state.activeWorldUsers = {[this.myId]: {...this.state.user, id: this.myId}}; 
-                this.broadcastWorldState(); // Initial broadcast
+                this.broadcastWorldState(); 
             }
             joinWorld() { this.enterWorld(this.pendingWorldType || 'meadow'); }
             enterWorld(t) {
@@ -1310,8 +1326,8 @@
                 document.getElementById('world-input').onkeypress = e => { if(e.key==='Enter'){ document.getElementById('msg-input').value=e.target.value; this.sendMessage(); e.target.value=''; }};
                 
                 if(!this.state.isHosting && this.state.activeWorldHostId && this.conns[this.state.activeWorldHostId]) {
-                     this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-enter', user: this.state.user });
-                     this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'request-world-state' });
+                     this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-enter', user: this.state.user, senderId: this.myId });
+                     this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'request-world-state', senderId: this.myId });
                 }
             }
             leaveWorld() {
@@ -1326,20 +1342,18 @@
                 document.getElementById('view-messenger').classList.remove('hidden');
                 this.engine.isWorldActive=false;
                 
-                // FIX: Update Local Group Status if host - DO THIS BEFORE NETWORKING to prevent UI freeze if crash
                 if(this.state.isHosting) {
                      const g = this.state.groups.find(g=>g.id===this.state.activeChatId);
                      if(g) { g.isLive = false; this.renderGroups(); }
                 }
 
                 if(!this.state.isHosting && this.state.activeWorldHostId) {
-                     // CRITICAL FIX: Check if connection exists before sending
                      if (this.conns[this.state.activeWorldHostId]) {
-                        this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-leave' });
+                        this.safeSend(this.conns[this.state.activeWorldHostId], { type: 'world-leave', senderId: this.myId });
                      }
                 } else if (this.state.isHosting) {
                     this.state.activeWorldUsers = {};
-                    this.broadcast({ type: 'world-closed' }); // BOOT EVERYONE
+                    this.broadcast({ type: 'world-closed', senderId: this.myId }); 
                 }
             }
             shareScreen() {
@@ -1347,7 +1361,7 @@
                     this.state.streamerId = this.myId;
                     this.engine.applyVideoTexture(stream);
                     this.handleIncomingStream(stream, this.myId);
-                    if(this.state.isHosting) this.broadcast({type:'stream-start', streamerId: this.myId});
+                    if(this.state.isHosting) this.broadcast({type:'stream-start', streamerId: this.myId, senderId: this.myId});
                     Object.values(this.conns).forEach(c => this.peer.call(c.peer, stream));
                 });
             }
@@ -1376,7 +1390,6 @@
                         const previewCanvas = document.getElementById('preview-canvas');
                         document.getElementById('setup-preview-container').appendChild(previewCanvas);
                     }
-                    // Return to Home if needed
                     else if(!document.getElementById('view-home').classList.contains('hidden')) {
                          const previewCanvas = document.getElementById('preview-canvas');
                          document.getElementById('home-avatar-preview').appendChild(previewCanvas);
@@ -1416,7 +1429,7 @@
                    btn.innerHTML = `<div class="w-8 h-8 rounded bg-gray-500 flex items-center justify-center text-xs text-white font-bold">${c.name[0]||'?'}</div> <span>${c.name}</span>`;
                    btn.onclick = () => {
                        if(this.conns[c.id] && this.conns[c.id].open) {
-                           this.safeSend(this.conns[c.id], { type: 'group-invite', groupName: document.getElementById('current-chat-name').innerText, groupId: this.state.activeChatId, senderName: this.state.user.name });
+                           this.safeSend(this.conns[c.id], { type: 'group-invite', groupName: document.getElementById('current-chat-name').innerText, groupId: this.state.activeChatId, senderName: this.state.user.name, senderId: this.myId });
                            showToast("Invite Sent");
                            document.getElementById('modal-invite-contact').classList.add('hidden');
                        } else { showToast("User Offline"); }
