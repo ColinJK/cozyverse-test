@@ -102,9 +102,9 @@
         .msg-them .msg-bubble { background-color: white; color: #1f2937; border-bottom-left-radius: 2px; }
         .dark .msg-them .msg-bubble { background-color: #374151; color: white; }
 
-        .msg-status { font-size: 10px; margin-left: 4px; display: inline-block; }
+        .msg-status { font-size: 10px; margin-left: 4px; display: inline-block; opacity: 0.8; }
         .status-pending { color: #9ca3af; }
-        .status-sent { color: #60a5fa; }
+        .status-sent { color: #a5f3fc; }
 
         .video-container { aspect-ratio: 16/9; background: black; width: 100%; border-radius: 8px; overflow: hidden; position: relative; }
         .video-container video { width: 100%; height: 100%; object-fit: contain; }
@@ -575,19 +575,28 @@
             
             spawnMe(u) { if(this.myAvatar) this.scene.remove(this.myAvatar); this.myAvatar = Avatar.create(u); this.scene.add(this.myAvatar); }
             updatePeer(id, d) {
-                // FIX: Check if we have an avatar, if not create one using stored profile if available
+                // FIX: Better syncing for avatars that might exist but lack profile data
                 if(!this.avatars[id]) { 
-                    // Try to find full profile in known users or connections
                     let profile = window.app.state.activeWorldUsers[id] || (window.app.conns[id] ? window.app.conns[id].user : null);
-                    // Fallback to default if no profile found, but use data colors if present
                     if (!profile) profile = { ...d, skinColor: d.skinColor || '#cccccc', outfitColor: d.outfitColor || '#ffffff', type: d.type||0, hat: d.hat||0, back: d.back||0 };
                     
                     const m = Avatar.create(profile); 
                     this.scene.add(m); 
                     this.avatars[id] = m; 
+                } else if (d.skinColor && !this.avatars[id].userData.hasProfile) {
+                    // Re-create if we receive full profile and current one is a dummy
+                    this.scene.remove(this.avatars[id]);
+                    const m = Avatar.create(d);
+                    m.userData.hasProfile = true;
+                    this.scene.add(m);
+                    this.avatars[id] = m;
                 }
+
                 const av = this.avatars[id];
-                av.userData.targetPos = new THREE.Vector3(d.x, d.y, d.z); av.userData.targetRot = d.ry;
+                // If d has position, update target. If not (profile update), keep current pos
+                if(d.x !== undefined) {
+                    av.userData.targetPos = new THREE.Vector3(d.x, d.y, d.z); av.userData.targetRot = d.ry;
+                }
             }
             removePeerAvatar(id) { if(this.avatars[id]) { this.scene.remove(this.avatars[id]); delete this.avatars[id]; } }
             
@@ -712,6 +721,7 @@
                         this.myAvatar.userData.limbs.armL.rotation.x = s; this.myAvatar.userData.limbs.armR.rotation.x = -s;
                         this.myAvatar.userData.limbs.legL.rotation.x = -s; this.myAvatar.userData.limbs.legR.rotation.x = s;
                     }
+                    // Send senderId explicitly
                     window.app.broadcastPosition({x:this.myAvatar.position.x, y:this.myAvatar.position.y, z:this.myAvatar.position.z, ry:this.myAvatar.rotation.y, senderId:this.myId});
                 }
                 
@@ -891,7 +901,7 @@
                 });
             }
             handleData(id, data) {
-                // USE SENDER ID FROM PACKET IF AVAILABLE (Relay logic)
+                // RELAY FIX: Use senderId from packet, fallback to id only for direct
                 const sourceId = data.senderId || id; 
 
                 if(data.type === 'chat') { 
@@ -910,15 +920,19 @@
                     if(this.state.isHosting) this.broadcast(data, id); 
                     if (!this.state.contacts.find(c => c.id === id)) { this.state.contacts.push({ id: id, name: data.senderName, unread: 0 }); localStorage.setItem('cozyContacts', JSON.stringify(this.state.contacts)); this.renderContacts(); }
                 } else if(data.type === 'pos') { 
-                    // FIX: Update avatar using sourceId (sender), not connection id (Host)
+                    // UPDATE PEER VISIBILITY
                     this.engine.updatePeer(sourceId, data); 
                     if(this.state.isHosting) {
-                        this.state.activeWorldUsers[sourceId] = { ...(this.state.activeWorldUsers[sourceId] || {}), ...data, id: sourceId };
+                        // Update Host State but don't wipe profile if it exists
+                        const existing = this.state.activeWorldUsers[sourceId] || {};
+                        this.state.activeWorldUsers[sourceId] = { ...existing, ...data, id: sourceId };
                         this.broadcast(data, id); 
                     }
                 } else if(data.type === 'world-enter') {
                     if(this.state.isHosting) {
-                         this.state.activeWorldUsers[sourceId] = { ...data.user, id: sourceId }; 
+                         // MERGE profile data, don't overwrite pos
+                         const existing = this.state.activeWorldUsers[sourceId] || {};
+                         this.state.activeWorldUsers[sourceId] = { ...existing, ...data.user, id: sourceId }; 
                          this.broadcastWorldState(); 
                     }
                 } else if(data.type === 'world-leave') {
