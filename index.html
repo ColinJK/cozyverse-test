@@ -308,16 +308,17 @@
 
     <!-- 3D World Overlay -->
     <div id="world-overlay" class="hidden absolute top-0 left-0 w-full h-full z-30 pointer-events-none flex flex-col justify-between">
-        <div class="p-4 flex justify-between items-start pointer-events-auto">
+        <!-- High Z-index controls container to fix click issues -->
+        <div class="p-4 flex justify-between items-start pointer-events-auto relative z-[70]">
             <div class="glass p-2 rounded-lg text-white text-xs flex flex-col gap-1 shadow-lg">
                 <div class="font-bold opacity-80 flex items-center gap-2"><span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> World Active</div>
                 <button onclick="app.shareScreen()" id="btn-share-screen" class="bg-purple-600 hover:bg-purple-500 px-2 py-1.5 rounded mt-1 font-bold">Share Screen</button>
                 <button onclick="app.toggleCameraMode()" class="bg-white/10 hover:bg-white/20 px-2 py-1 rounded mt-1">Toggle Cam (C)</button>
-                <div class="mt-2 text-[10px] opacity-70 md:block hidden">Click screen to lock mouse</div>
             </div>
             <button onclick="app.leaveWorld()" class="glass p-3 rounded-full text-red-400 hover:text-red-200 hover:bg-red-500/20 transition shadow-lg"><i class="ph ph-x-circle text-2xl"></i></button>
         </div>
-        <div class="p-4 w-full max-w-md pointer-events-auto mb-20 md:mb-0">
+        
+        <div class="p-4 w-full max-w-md pointer-events-auto mb-20 md:mb-0 relative z-[70]">
             <div id="world-chat-log" class="h-40 overflow-y-auto mask-gradient mb-2 text-white text-shadow shadow-black/50 text-sm space-y-1 font-medium px-2"></div>
             <input type="text" id="world-input" class="glass w-full p-3 rounded-full text-white placeholder-white/50 outline-none focus:bg-black/60 transition" placeholder="Say something...">
         </div>
@@ -724,8 +725,13 @@
                 const vec = new THREE.Vector3(dx, 0, dz);
                 if(vec.lengthSq() > 0) {
                     vec.normalize().multiplyScalar(speed);
-                    if(this.camMode===1) vec.applyEuler(new THREE.Euler(0, this.euler.y, 0));
-                    else this.myAvatar.rotation.y = Math.atan2(vec.x, vec.z);
+                    if(this.camMode===1) {
+                        vec.applyEuler(new THREE.Euler(0, this.euler.y, 0));
+                        // FIX: Rotate avatar 180 degrees in FPS mode so faces forward relative to camera
+                        this.myAvatar.rotation.y = this.euler.y + Math.PI; 
+                    } else {
+                        this.myAvatar.rotation.y = Math.atan2(vec.x, vec.z);
+                    }
                     this.myAvatar.position.add(vec);
                     
                     const s = Math.sin(Date.now() * 0.015) * 0.6;
@@ -787,6 +793,13 @@
                 else this.switchView('setup');
                 document.getElementById('setup-name').addEventListener('keypress', e => { if(e.key==='Enter') this.finishSetup(); });
                 document.getElementById('msg-input').addEventListener('keypress', e => { if(e.key==='Enter') this.sendMessage(); });
+                // Added specific handler for world chat input
+                document.getElementById('world-input').addEventListener('keypress', e => { 
+                    if(e.key==='Enter') {
+                        this.sendMessage(e.target.value); 
+                        e.target.value = '';
+                    }
+                });
                 document.getElementById('join-group-input').addEventListener('keypress', e => { if(e.key==='Enter') this.joinGroupById(); });
                 if ('wakeLock' in navigator) { try { navigator.wakeLock.request('screen'); } catch(e) {} }
             }
@@ -898,7 +911,13 @@
                     this.engine.removePeerAvatar(conn.peer);
                     this.updateConnUI(conn.peer, false);
                     this.renderContacts(); 
-                    if(this.state.activeWorldHostId === conn.peer) { this.leaveWorld(); showToast("Host Disconnected"); }
+                    if(this.state.activeWorldHostId === conn.peer) { 
+                        // Host left, close world for clients
+                        this.leaveWorld(); 
+                        this.state.activeWorldHostId = null;
+                        this.updateWorldUI();
+                        showToast("Host Disconnected"); 
+                    }
                     if(this.state.isHosting) { delete this.state.activeWorldUsers[conn.peer]; this.broadcastWorldState(); }
                     
                     // Cleanup stream if streamer disconnected
@@ -925,6 +944,7 @@
                             const c = this.state.contacts.find(x=>x.id===sourceId);
                             if(c && c.name === 'Unknown') { c.name = data.user.name; this.renderContacts(); }
                         }
+                        // Only set host if they are ACTUALLY active in world
                         if(data.isWorldHost) { this.state.activeWorldHostId = sourceId; this.updateWorldUI(); }
                         break;
                     case 'chat':
@@ -951,7 +971,18 @@
                         break;
                     case 'world-state':
                         if(data.users) Object.keys(data.users).forEach(uid => { if(uid !== this.myId) { this.peerProfiles[uid] = data.users[uid]; this.engine.updatePeer(uid, data.users[uid]); } });
-                        if(!this.engine.isWorldActive && data.worldType) { this.pendingWorldType = data.worldType; showToast("World Active"); this.updateWorldUI(); }
+                        // Handle closing world
+                        if(!data.worldType) {
+                            this.state.activeWorldHostId = null;
+                            if(this.engine.isWorldActive) { this.leaveWorld(); showToast("World Closed by Host"); }
+                            this.updateWorldUI();
+                        } else if(!this.engine.isWorldActive) { 
+                            this.pendingWorldType = data.worldType; 
+                            this.state.activeWorldHostId = sourceId;
+                            showToast("World Active"); 
+                            this.updateWorldUI(); 
+                        }
+                        
                         if(data.streamerId) {
                              this.state.activeStreamerId = data.streamerId;
                              this.updateWorldUI();
@@ -1024,6 +1055,9 @@
                 this.updateWorldUI();
             }
             joinWorld() {
+                // Guard: Cant join if host isnt active
+                if(!this.state.activeWorldHostId) return showToast("Host offline");
+                
                 if(!this.pendingWorldType) return;
                 this.enterWorld(this.pendingWorldType);
                 if(this.state.activeWorldHostId && this.conns[this.state.activeWorldHostId]) {
@@ -1043,6 +1077,12 @@
                 document.getElementById('joystick-zone').style.display='none';
                 document.getElementById('touch-look-zone').style.display='none';
                 document.getElementById('view-messenger').classList.remove('hidden');
+                
+                // Broadcast Close if Hosting
+                if(this.state.isHosting) {
+                    this.broadcast({ type: 'world-state', worldType: null, senderId: this.myId });
+                }
+                
                 this.engine.isWorldActive = false; this.state.isHosting = false;
                 if(this.state.localStream) this.stopScreenShare();
             }
@@ -1053,7 +1093,15 @@
                 document.getElementById('launch-controls').classList.toggle('hidden', isLive && !isMe);
                 document.getElementById('join-world-btn-container').classList.toggle('hidden', !isLive || isMe);
                 
-                // Stream lock UI
+                // Update "Watch" button in chat header regardless of world state
+                const watchBtn = document.getElementById('btn-watch-stream');
+                if(this.state.activeStreamerId && this.state.activeStreamerId !== this.myId) {
+                    watchBtn.classList.remove('hidden');
+                } else {
+                    watchBtn.classList.add('hidden');
+                }
+
+                // Update World Overlay Buttons
                 const btn = document.getElementById('btn-share-screen');
                 if(this.state.activeStreamerId && this.state.activeStreamerId !== this.myId) {
                     btn.disabled = true;
@@ -1072,8 +1120,8 @@
                 }
             }
 
-            sendMessage() {
-                const txt = document.getElementById('msg-input').value.trim();
+            sendMessage(content = null) {
+                const txt = (content || document.getElementById('msg-input').value).trim();
                 if(!txt || !this.state.activeChatId) return;
 
                 const isGroup = this.state.activeChatId.startsWith(CONFIG.HOST_ID_PREFIX);
